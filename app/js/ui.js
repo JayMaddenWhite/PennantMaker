@@ -926,6 +926,9 @@
     $('#viewSeg [data-view="flat"]').classList.add('on');
     $('#phToggle').addEventListener('change', (e) => { st.ph = e.target.checked; render(); });
     $('#stage').addEventListener('pointerdown', onStageDown);
+    // phones: the pinned preview sits just under the (wrapping) header
+    const topEl = $('.top'), setTop = () => document.documentElement.style.setProperty('--top-h', Math.round(topEl.getBoundingClientRect().height) + 'px');
+    setTop(); if (window.ResizeObserver) new ResizeObserver(setTop).observe(topEl);
     const slotAt = (e) => { const el = document.elementFromPoint(e.clientX, e.clientY); const part = el && el.closest && el.closest('#stage [data-part]'); return (part && IMG_SLOT[part.dataset.part]) ? part.dataset.part : 'mark'; };
     dropTarget($('#stage'), slotAt);
     $('#stage').addEventListener('dragover', (e) => { if (isImgDrag(e)) $('#stageHint').textContent = 'Drop onto: ' + SLOT_NAME[slotAt(e)]; });

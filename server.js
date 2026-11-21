@@ -106,7 +106,7 @@ function start(port = 5178, host = '127.0.0.1') {
       const ext = path.extname(file);
       res.writeHead(200, {
         'Content-Type': TYPES[ext] || 'application/octet-stream',
-        'Cache-Control': ext === '.html' ? 'no-cache' : 'public, max-age=3600',
+        'Cache-Control': ['.html', '.js', '.css', '.webmanifest'].includes(ext) ? 'no-cache' : 'public, max-age=3600', // code always fresh after a deploy
         'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'strict-origin-when-cross-origin',
       });
       res.end(data);

@@ -226,3 +226,51 @@ input[type=checkbox], input[type=radio], input[type=range] { accent-color: var(-
 .lrow select.grp { color: var(--ink); }
 .lrow select.gA, .lrow select.gB, .lrow select.gC, .lrow select.gD { color: #163a26; }
 .drop-on { outline-color: var(--yellow) !important; background: rgba(242,194,48,.12) !important; }
+
+/* ===== Phones & small tablets: one scrolling page, preview pinned on top ===== */
+@media (max-width: 860px) {
+  html, body { height: auto; min-height: 100%; }
+  body { display: block; }
+  .top { position: sticky; top: 0; z-index: 20; gap: 8px; padding: 8px 12px; }
+  .brand { font-size: 17px; }
+  .brand img { width: 22px; height: 22px; }
+  .modes { order: 3; width: 100%; }
+  .modes button { flex: 1; padding: 8px 4px; font-size: 13px; }
+  .top-actions { margin-left: auto; gap: 4px; }
+  .top-actions button { padding: 6px 9px; font-size: 13px; }
+  .layout { display: flex; flex-direction: column; min-height: 0; }
+  .stage-wrap { overflow: visible; order: 1; }
+  .panel { overflow: visible; order: 2; border-right: none; border-top: 3px solid var(--monster-deep); padding: 12px; }
+  .stage-bar { padding: 8px 12px; gap: 8px; }
+  .stage-bar .hint { display: none; }
+  .seg button { padding: 6px 10px; }
+  /* the pennant stays in view while you scroll the controls */
+  .stage { position: sticky; z-index: 10; margin: 0 8px; padding: 8px; min-height: 0; border-width: 4px; }
+  .stage svg, .stage img { max-height: 34vh; }
+  .stage svg { touch-action: none; }   /* dragging a logo doesn't scroll the page */
+  .warnings { margin: 8px 8px 0; }
+  .export { margin: 10px 8px; padding: 10px; }
+  .export-row { gap: 8px; }
+  .export-row label { flex: 1 1 45%; }
+  .export-row select, .export-row input { width: 100%; }
+  #exBtn { flex: 1 1 100%; padding: 10px; }
+  .row { grid-template-columns: 96px 1fr; }
+  .col input[type=text] { width: 74px; }
+  /* bigger tap targets */
+  input[type=checkbox] { width: 18px; height: 18px; }
+  details.sec > summary { padding: 12px; }
+  .lrow { grid-template-columns: 1fr 34px 34px 48px 48px; }
+}
+@media (max-width: 420px) {
+  .top-actions #undoBtn, .top-actions #redoBtn { display: none; }
+
+}
+@media (max-width: 860px) {
+  /* let the preview pin over the whole page: its wrapper stops being a box of its own */
+  .stage-wrap { display: contents; }
+  .stage-bar { order: 1; } .stage { order: 2; top: var(--top-h, 100px); } .warnings { order: 3; } .export { order: 4; } .panel { order: 5; }
+}
+
+/* selects never wider than their box (the font picker grew to its longest option) */
+select { max-width: 100%; }
+.row select, .row input[type=text], .row input[type=search], .row input[type=url] { width: 100%; }
