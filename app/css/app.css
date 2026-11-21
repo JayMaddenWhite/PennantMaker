@@ -274,3 +274,7 @@ input[type=checkbox], input[type=radio], input[type=range] { accent-color: var(-
 /* selects never wider than their box (the font picker grew to its longest option) */
 select { max-width: 100%; }
 .row select, .row input[type=text], .row input[type=search], .row input[type=url] { width: 100%; }
+
+/* header wordmark (two-line script with the pennant) */
+.brand .wordmark { height: 58px; width: auto; display: block; margin: -8px 0; }
+@media (max-width: 860px) { .brand .wordmark { height: 40px; } }

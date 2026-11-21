@@ -1,0 +1,51 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Damion&family=Oswald:wght@500&display=block">
+<style>body{margin:0;background:#555}</style></head><body><pre id="out">working</pre>
+<script>
+// Builds the Pennant Maker wordmark as self-contained SVGs (fonts embedded), measured with the real fonts.
+(async () => {
+  const out = document.getElementById('out');
+  try {
+    await document.fonts.load('80px Damion'); await document.fonts.load('500 20px Oswald');
+    const css = await (await fetch('https://fonts.googleapis.com/css2?family=Damion&family=Oswald:wght@500&display=block')).text();
+    const faces = css.match(/\/\*\s*latin\s*\*\/\s*@font-face\s*\{[^}]*\}/g).map((b) => b.replace(/\/\*.*?\*\//, ''));
+    let fontCss = '';
+    for (const f of faces) {
+      const url = f.match(/url\((https:[^)]+)\)/)[1];
+      const blob = await (await fetch(url)).blob();
+      const data = await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); });
+      fontCss += f.replace(url, data);
+    }
+    const ctx = document.createElement('canvas').getContext('2d');
+    const S = 120;                                    // script size
+    ctx.font = `${S}px Damion`;
+    const w1 = ctx.measureText('Pennant').width, wMa = ctx.measureText('Ma').width, wK = ctx.measureText('k').width, w2 = ctx.measureText('Maker').width;
+    const x1 = 20, y1 = 150, x2 = 105, y2 = 262;      // line 2 indented under line 1
+    // pennant flies up and right off the top of the final t of "Pennant", as if from a pole
+    const wPennan = ctx.measureText('Pennan').width, wT = ctx.measureText('t').width;
+    const tx = x1 + wPennan + wT * 0.50, ttop = y1 - S * 0.48;
+    const tagY = y2 + 46, tag = 'CUSTOM FELT PENNANTS';
+    const W = Math.ceil(Math.max(tx + 92, x2 + w2) + 24), H = tagY + 16;
+    const make = (ink, flag, stripe, bg) => {
+      const px = tx, top = ttop - 70;                    // pole runs down into the t's stem
+      const pen = `<g>` +
+        `<rect x="${px - 3.5}" y="${top}" width="7" height="${ttop - top + 8}" rx="3.5" fill="${ink}"/>` +
+        `<g transform="rotate(-10 ${px} ${top + 2})">` +
+        `<polygon points="${px},${top} ${px + 78},${top + 17} ${px},${top + 34}" fill="${flag}"/>` +
+        `<polygon points="${px + 2},${top + 13} ${px + 50},${top + 16} ${px + 50},${top + 19.5} ${px + 2},${top + 22}" fill="${stripe}"/></g></g>`;
+      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">` +
+        `<style>${fontCss}</style>` + (bg ? `<rect width="${W}" height="${H}" fill="${bg}"/>` : '') +
+        `<text x="${x1}" y="${y1}" font-family="Damion" font-size="${S}" fill="${ink}">Pennant</text>` +
+        `<text x="${x2}" y="${y2}" font-family="Damion" font-size="${S}" fill="${ink}">Maker</text>` + pen +
+        `<text x="${x2 + w2 / 2}" y="${tagY}" text-anchor="middle" font-family="Oswald" font-weight="500" font-size="17" letter-spacing="6.5" fill="${ink}">${tag}</text></svg>`;
+    };
+    out.textContent = JSON.stringify({
+      maroon: make('#7a2433', '#7a2433', '#f3e6c8', null),      // on light backgrounds
+      cream: make('#f3e6c8', '#f3e6c8', '#7a2433', null),       // on dark backgrounds
+      monster: make('#f3e6c8', '#f2c230', '#1f4d33', null),     // app header (Green Monster)
+      felt: make('#f3e6c8', '#f3e6c8', '#7a2433', '#7a2433'),   // cream on maroon felt
+      W, H,
+    });
+  } catch (e) { out.textContent = 'ERR ' + e.stack; }
+})();
+</script></body></html>
