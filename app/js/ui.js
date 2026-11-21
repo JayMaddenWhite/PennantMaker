@@ -69,10 +69,21 @@
       if (dv) syncInputs();
     }
     // color link: a color change also changes the same color on linked layers
-    if (typeof v === 'string' && HEX.test(v) && typeof old === 'string' && HEX.test(old) && old.toLowerCase() !== v.toLowerCase()) {
+    // (skipped when the edited part is switched off, e.g. a hidden ring: nothing visible changed here,
+    //  so it must not recolor other layers)
+    const parent = path.split('.').slice(0, -1).reduce((o, k) => (o == null ? o : o[k]), st.d);
+    const partOff = parent && typeof parent === 'object' && parent.on === false;
+    if (!partOff && typeof v === 'string' && HEX.test(v) && typeof old === 'string' && HEX.test(old) && old.toLowerCase() !== v.toLowerCase()) {
+      const before = JSON.stringify(st.d);
       const others = linked(LAYER_OF(root), 'color');
-      for (const k of others) for (const o of PM.layerObjects(st.d, k)) swapColor(o, old, v);
-      if (others.length) syncInputs();
+      const touched = [];
+      for (const k of others) { const was = JSON.stringify(PM.layerObjects(st.d, k)); for (const o of PM.layerObjects(st.d, k)) swapColor(o, old, v); if (JSON.stringify(PM.layerObjects(st.d, k)) !== was) touched.push(k); }
+      if (touched.length) {
+        syncInputs();
+        const names = touched.map((k) => (PM.LAYERS_ALL.find(([key]) => key === k) || [k, k])[1]).join(', ');
+        toast(`Color link ${PM.layer(st.d, LAYER_OF(root)).color}: also changed ${names}`, 3500);
+      }
+      void before;
     }
     queueRender();
   }
@@ -523,7 +534,9 @@
         row('X', cRange('mark.x', 150, 1600)), row('Y', cRange('mark.y', 80, 760)),
         h('div', { class: 'sub' }, 'Outline'),
         ...koRows('mark.knockout'),
+        h('div', { class: 'sub' }, 'Outer ring (traces the logo itself)'),
         row('Outer ring', cCheck('mark.ring.on')), row('Ring color', cColor('mark.ring.color')), row('Ring width', cRange('mark.ring.w', 0, 20)),
+        st.d.template === 'hockey' ? h('p', { class: 'fine', style: 'margin:0' }, 'The circle ring around the logo on Vintage Hockey is the medallion ring: Wedges, center stripe & medallion → Ring color.') : null,
       ],
     },
     line1: { title: 'Wordmark – line 1 (small)', build: textSec('line1') },
