@@ -1,0 +1,41 @@
+{
+  "name": "pennant-maker",
+  "version": "0.1.0",
+  "description": "Design team pennants: automatic, guided or manual, with flat, felt and 8-bit output and a bulk maker.",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "node server.js",
+    "web": "node server.js",
+    "desktop": "electron .",
+    "build:win": "electron-builder --win portable"
+  },
+  "build": {
+    "appId": "local.pennantmaker",
+    "productName": "Pennant Maker",
+    "files": [
+      "app/**",
+      "electron/**",
+      "server.js",
+      "package.json"
+    ],
+    "win": {
+      "target": "portable",
+      "signAndEditExecutable": false,
+      "icon": "build/icons/pennant-maker/windows/pennant-maker.ico"
+    },
+    "electronDist": "node_modules/electron/dist",
+    "directories": {
+      "buildResources": "build"
+    }
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  },
+  "allowScripts": {
+    "electron@33.4.11": true
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

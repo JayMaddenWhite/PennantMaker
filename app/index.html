@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pennant Maker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:ital,wght@0,400..800;1,400..800&display=swap">
+  <link rel="stylesheet" href="css/app.css">
+  <link rel="icon" href="icons/favicon.ico" sizes="48x48">
+  <link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="manifest" href="icons/site.webmanifest">
+</head>
+<body>
+  <header class="top">
+    <div class="brand"><img src="icons/favicon.svg" width="26" height="26" alt=""><span>Pennant Maker</span></div>
+    <nav class="modes" id="modes">
+      <button data-mode="auto">Automatic</button>
+      <button data-mode="guided">Guided</button>
+      <button data-mode="manual">Manual</button>
+      <button data-mode="bulk">Bulk</button>
+    </nav>
+    <div class="top-actions">
+      <button class="ghost" id="undoBtn" title="Undo (Ctrl+Z)">↶</button>
+      <button class="ghost" id="redoBtn" title="Redo (Ctrl+Y)">↷</button>
+      <button class="ghost" id="newBtn" title="Start over from the blank starter pennant">New</button>
+      <button class="ghost" id="openBtn">Open</button>
+      <button class="ghost" id="saveBtn">Save</button>
+      <input type="file" id="openFile" accept=".json,.pennant" hidden>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="panel" id="panel"></aside>
+
+    <section class="stage-wrap">
+      <div class="stage-bar">
+        <div class="seg" id="viewSeg">
+          <button data-view="flat">Flat</button>
+          <button data-view="felt">Felt</button>
+          <button data-view="aged">Aged</button>
+          <button data-view="pixel">8-bit</button>
+        </div>
+        <label class="chk"><input type="checkbox" id="phToggle" checked> Show empty slots</label>
+        <span class="hint" id="stageHint"></span>
+      </div>
+      <div class="stage" id="stage"></div>
+      <div class="warnings" id="warnings"></div>
+
+      <div class="export">
+        <div class="export-row">
+          <label>Export
+            <select id="exFormat">
+              <option value="svg">Flat vector (SVG)</option>
+              <option value="png">Flat image (PNG)</option>
+              <option value="felt">Felt mockup (PNG)</option>
+              <option value="aged">Aged vintage (PNG)</option>
+              <option value="pixel">8-bit pixel art (PNG)</option>
+              <option value="chart">Bead / cross-stitch chart (PNG)</option>
+            </select>
+          </label>
+          <label>Background
+            <select id="exBg">
+              <option value="transparent">Transparent</option>
+              <option value="wall">Beige wall</option>
+              <option value="#ffffff">White</option>
+            </select>
+          </label>
+          <label>Width <input type="number" id="exWidth" value="2400" min="300" max="8000" step="100"></label>
+          <label class="px-only">8-bit style
+            <select id="exPreset">
+              <option value="nes">NES style</option>
+              <option value="gameboy">Game Boy</option>
+              <option value="snes">16-bit (SNES / Genesis)</option>
+            </select>
+          </label>
+          <label class="px-only">Pixels across
+            <select id="exPixels"><option>64</option><option>96</option><option selected>128</option><option>160</option><option>192</option><option>256</option></select>
+          </label>
+          <label class="chart-only">Chart for
+            <select id="exChart"><option value="beads">Fuse beads (Perler / Hama)</option><option value="stitch">Cross-stitch</option></select>
+          </label>
+          <label class="chart-only">Beads / stitches across <input type="number" id="exCells" value="58" min="20" max="200" step="1"></label>
+          <label class="chart-only">Max colors <input type="number" id="exColors" value="10" min="2" max="30" step="1"></label>
+          <button class="primary" id="exBtn">Download</button>
+        </div>
+        <p class="fine">Team and league logos are pulled live for mockups and personal use. Selling pennants that carry them needs a license from the team or league.</p>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="js/colors.js"></script>
+  <script src="js/fontlist.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/fonts.js"></script>
+  <script src="js/sources.js"></script>
+  <script src="js/render.js"></script>
+  <script src="js/zip.js"></script>
+  <script src="js/auto.js"></script>
+  <script src="js/bulk.js"></script>
+  <script src="js/ui.js"></script>
+</body>
+</html>

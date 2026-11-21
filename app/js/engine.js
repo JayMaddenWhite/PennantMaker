@@ -1,0 +1,468 @@
+// Pennant rendering engine: design JSON → SVG string.
+// Every editable part is its own <g data-part="...">.
+window.PM = window.PM || {};
+(function (PM) {
+  PM.DEFAULT_FIELD = '#fff3d9';
+
+  // ---------- Templates (background designs) ----------
+  // Each template = shared geometry + its own background pattern + default layout
+  // + how team colors map onto its parts. Add more backgrounds by adding an entry here.
+  const GEO = { W: 2000, H: 820, spineX: 105, top: 55, bottom: 752, bodyX: 165, tipX: 1905, tieTopY: 212, tieBottomY: 642 };
+  const poly = (p, fill, extra = '') => `<polygon points="${p.map((q) => q.map((v) => +v.toFixed(2)).join(',')).join(' ')}" fill="${fill}"${extra}/>`;
+  const insetClip = (id, g) => `<defs><clipPath id="${id}">${poly(g.inset, '#000')}</clipPath></defs>`;
+
+  PM.TEMPLATES = {
+    classic: Object.assign({}, GEO, {
+      name: 'Vintage Baseball',
+      // 4 diagonal stripes in 2 pairs, parallel to the bottom edge, mirrored (ABBA) or staggered (ABAB)
+      pattern(d, g) {
+        const st = d.stripes, t = g.t, th = st.thickness;
+        if (!st.show) return '';
+        const tops = [st.topY, st.topY + th + st.gap, st.bottomY, st.bottomY + th + st.gap];
+        const seq = st.order === 'ABAB' ? ['A', 'B', 'A', 'B'] : ['A', 'B', 'B', 'A'];
+        const x0 = t.bodyX - 4, x1 = g.tipX + 10, run = x1 - x0;
+        let s = insetClip('patClip', g) + `<g data-part="pattern" clip-path="url(#patClip)">`;
+        tops.forEach((y, i) => {
+          if (st.hide[i]) return;
+          s += poly([[x0, y], [x1, y + g.b * run], [x1, y + th + g.b * run], [x0, y + th]], seq[i] === 'A' ? st.colorA : st.colorB, ` data-stripe="${i}"`);
+        });
+        return s + `</g>`;
+      },
+      defaults: {
+        wordStyle: 'block',
+        field: { margin: 18, tipX: 1905 },
+        spine: { outerW: 40, innerW: 18, stitchSeam: true },
+        ties: { top: { show: true }, bottom: { show: true } },
+        stamps: { x: 180, y: 105, items: [{ show: true, size: 68 }, { show: true, size: 68 }] },
+        mark: { x: 415, y: 400, size: 450 },
+        line1: { x: 1065, y: 340, size: 78, maxWidth: 560 },
+        line2: { x: 1065, y: 500, size: 170, maxWidth: 790 },
+        extra: { x: 415, y: 690 },
+        maker: { x: 205, y: 690 },
+      },
+      field: PM.DEFAULT_FIELD,
+      layout: { l1y: 340, l2y: 500, soloY: 450, size2: 170 },
+    }),
+
+    hoops: Object.assign({}, GEO, {
+      name: 'Vintage Hoops',
+      // Solid corner wedges at the spine + a thin accent stripe inside each, ending in a slanted point
+      pattern(d, g) {
+        const h = d.hoops, t = g.t;
+        if (!h.show) return '';
+        const x0 = t.bodyX - 4;
+        let s = `<g data-part="pattern">`;
+        if (h.wedges) {
+          const yT = t.top + h.wedgeH, xT = t.bodyX + h.wedgeH / g.a;
+          const yB = t.bottom - h.wedgeH, xB = t.bodyX + h.wedgeH / -g.b;
+          s += poly([[x0, t.top - 2], [xT, yT], [x0, yT]], h.wedge) + poly([[x0, t.bottom + 2], [xB, yB], [x0, yB]], h.wedge);
+        }
+        if (h.stripes) {
+          const w = h.stripeW, xe = h.stripeEnd, cut = w / g.a;
+          const yA = t.top + h.wedgeH + h.gap, yZ = t.bottom - h.wedgeH - h.gap;
+          s += insetClip('patClip', g) + `<g clip-path="url(#patClip)">` +
+            poly([[x0, yA], [xe, yA], [xe + cut, yA + w], [x0, yA + w]], h.stripe) +
+            poly([[x0, yZ - w], [xe + cut, yZ - w], [xe, yZ], [x0, yZ]], h.stripe) + `</g>`;
+        }
+        return s + `</g>`;
+      },
+      defaults: {
+        wordStyle: 'hoops',
+        field: { margin: 14, tipX: 1950 },
+        spine: { outerW: 46, innerW: 0, stitchSeam: false },
+        ties: { top: { show: false }, bottom: { show: false } },
+        stamps: { x: 178, y: 688, items: [{ show: true, size: 66 }, { show: false, size: 60 }] },
+        mark: { x: 420, y: 404, size: 560 },
+        line1: { x: 1090, y: 348, size: 80, maxWidth: 760 },
+        line2: { x: 1090, y: 492, size: 160, maxWidth: 880 },
+        extra: { x: 420, y: 700 },
+        maker: { x: 205, y: 112 },
+      },
+      field: '#f6f4ee',
+      layout: { l1y: 348, l2y: 492, soloY: 450, size2: 160 },
+      // Hoops: wedges = the darker team color, accent stripes + spine = the lighter one (as on the 80s NBA pennants)
+      palette(d, p) {
+        const C = PM.colors;
+        const [dark, light] = C.lum(p.primary) <= C.lum(p.secondary) ? [p.primary, p.secondary] : [p.secondary, p.primary];
+        d.hoops.wedge = dark; d.hoops.stripe = light;
+        d.spine.outer = light; d.spine.inner = light;
+        d.spine.stitch = C.mix(light, C.lum(light) > 0.5 ? '#000000' : '#ffffff', 0.35);
+        // wordmark in the dark color, accent outline in the light one
+        for (const l of [d.line1, d.line2]) if (l.fill === p.primary || l.fill === p.secondary) l.fill = C.contrast(dark, d.field.color) >= 2.2 ? dark : l.fill;
+        for (const l of [d.line1, d.line2]) if (l.o1.w > 0 && (l.o1.color === p.primary || l.o1.color === p.secondary)) l.o1.color = l.fill === light ? dark : light;
+      },
+    }),
+
+    hockey: Object.assign({}, GEO, {
+      name: 'Vintage Hockey',
+      // Inset corner wedges (white border along the edges), a thick center stripe ending in a point,
+      // a felt medallion behind the logo, and a felt knockout behind the wordmark.
+      pattern(d, g) {
+        const k = d.hockey, t = g.t;
+        if (!k.show) return '';
+        const x0 = t.bodyX - 4, m = d.field.margin;
+        let s = `<g data-part="pattern">`;
+        if (k.wedges) {
+          const yT = t.top + k.wedgeH, xT = t.bodyX + (yT - (t.top + m)) / g.a;
+          const yB = t.bottom - k.wedgeH, xB = t.bodyX + (yB - (t.bottom - m)) / g.b;
+          s += poly([[x0, t.top + m], [xT, yT], [x0, yT]], k.color) + poly([[x0, t.bottom - m], [xB, yB], [x0, yB]], k.color);
+        }
+        const yc = (t.top + t.bottom) / 2, w = k.centerW;
+        if (k.center) {
+          const xe = k.centerEnd, cut = w * 1.1;
+          s += insetClip('patClip', g) + `<g clip-path="url(#patClip)">` +
+            poly([[x0, yc - w / 2], [xe, yc - w / 2], [xe + cut, yc], [xe, yc + w / 2], [x0, yc + w / 2]], k.color) + `</g>`;
+          // felt knockout behind the wordmark, so the stripe stops around the lettering
+          if (k.knockout) {
+            const spans = [d.line1, d.line2].filter((l) => PM.lineUsesImg(l) || (l.show && l.text)).map((l) => {
+              if (PM.lineUsesImg(l)) { const b = PM.lineImgBox(l); return [b.cx - b.w / 2, b.cx + b.w / 2]; }
+              const wd = PM.measure(l, PM.fitSize(l)); return [l.x - wd / 2, l.x + wd / 2];
+            });
+            if (spans.length) {
+              const L = Math.min(...spans.map((q) => q[0])) - k.knockPad, R = Math.max(...spans.map((q) => q[1])) + k.knockPad;
+              s += `<rect x="${L.toFixed(1)}" y="${yc - w / 2 - 2}" width="${(R - L).toFixed(1)}" height="${w + 4}" fill="${d.field.color}"/>`;
+            }
+          }
+        }
+        if (k.medallion && d.mark.show) {
+          const r = d.mark.size / 2 * k.medScale;
+          s += `<circle cx="${d.mark.x}" cy="${d.mark.y}" r="${r.toFixed(1)}" fill="${d.field.color}"/>`;
+          if (k.ring) s += `<circle cx="${d.mark.x}" cy="${d.mark.y}" r="${(r - k.ringGap - k.ringW / 2).toFixed(1)}" fill="none" stroke="${k.ringColor}" stroke-width="${k.ringW}"/>`;
+        }
+        return s + `</g>`;
+      },
+      defaults: {
+        wordStyle: 'hockey',
+        field: { margin: 26, tipX: 1950 },
+        spine: { outerW: 46, innerW: 0, stitchSeam: false },
+        ties: { top: { show: false }, bottom: { show: false } },
+        stamps: { x: 180, y: 702, items: [{ show: true, size: 60 }, { show: false, size: 60 }] },
+        mark: { x: 432, y: 404, size: 430 },
+        line1: { x: 1090, y: 335, size: 68, maxWidth: 640 },
+        line2: { x: 1090, y: 462, size: 150, maxWidth: 720 },
+        extra: { x: 432, y: 700 },
+        maker: { x: 205, y: 112 },
+      },
+      field: '#f6f4ee',
+      layout: { l1y: 335, l2y: 462, soloY: 440, size2: 150 },
+      // Hockey: the brighter team color on wedges/stripe, the darker one on spine + lettering
+      palette(d, p) {
+        const C = PM.colors;
+        const [dark, light] = C.lum(p.primary) <= C.lum(p.secondary) ? [p.primary, p.secondary] : [p.secondary, p.primary];
+        d.hockey.color = light; d.hockey.ringColor = light;
+        d.spine.outer = dark; d.spine.inner = dark;
+        d.spine.stitch = C.mix(dark, C.lum(dark) > 0.5 ? '#000000' : '#ffffff', 0.35);
+        const txt = C.contrast(dark, d.field.color) >= 2.2 ? dark : (C.contrast(light, d.field.color) >= 2.2 ? light : '#1b1b1b');
+        for (const l of [d.line1, d.line2]) if (l.fill === p.primary || l.fill === p.secondary || l.fill === '#141414') l.fill = txt;
+      },
+    }),
+  };
+
+  // Recursive merge; arrays of objects merge item by item (so logos in stamp slots survive).
+  PM.merge = (base, over) => {
+    for (const k of Object.keys(over || {})) {
+      const o = over[k], b = base[k];
+      if (Array.isArray(o) && Array.isArray(b)) o.forEach((v, i) => { if (v && typeof v === 'object' && b[i] && typeof b[i] === 'object') PM.merge(b[i], v); else b[i] = v; });
+      else if (o && typeof o === 'object' && !Array.isArray(o) && b && typeof b === 'object') PM.merge(b, o);
+      else base[k] = o;
+    }
+    return base;
+  };
+
+  // ---------- Layers ----------
+  // Movable layers (position objects) and every layer that can share colors.
+  PM.LAYER_KEYS = ['stamps', 'mark', 'line1', 'line2', 'extra', 'maker'];
+  PM.LAYERS_ALL = [
+    ['line1', 'Wordmark line 1'], ['line2', 'Wordmark line 2'], ['extra', 'Extra text'], ['mark', 'Primary mark'],
+    ['stamps', 'League stamps'], ['maker', "Maker's mark"], ['pattern', 'Background pattern'], ['spine', 'Spine'], ['ties', 'Ties'], ['field', 'Felt body'],
+  ];
+  PM.layer = (d, k) => (d.layers && d.layers[k]) || {};
+  PM.isLocked = (d, k) => !!PM.layer(d, k).lock;
+  // the design objects a layer key owns (the pattern layer covers every template's pattern settings)
+  PM.layerObjects = (d, k) => (k === 'pattern' ? [d.stripes, d.hoops, d.hockey] : [d[k]]).filter(Boolean);
+
+  // Switch a design to another background: apply that template's layout, then recolor.
+  PM.setTemplate = (d, key) => {
+    const tpl = PM.TEMPLATES[key]; if (!tpl) return d;
+    const prevField = (PM.TEMPLATES[d.template] || {}).field;
+    d.template = key;
+    const defs = JSON.parse(JSON.stringify(tpl.defaults));
+    // locked layers keep their position and size
+    for (const k of PM.LAYER_KEYS) if (PM.isLocked(d, k) && defs[k]) { delete defs[k].x; delete defs[k].y; delete defs[k].size; }
+    PM.merge(d, defs);
+    // swap felt color only if it was still the old template's default felt
+    if (!d.field.color || d.field.color === prevField || d.field.color === PM.DEFAULT_FIELD) {
+      d.field.color = tpl.field; if (d.palette) d.palette.field = tpl.field;
+    }
+    d.mark.knockout.color = d.field.color;
+    if (PM.colors && d.palette) PM.colors.applyPalette(d, Object.assign({}, d.palette, { field: d.field.color }), d.wordStyle);
+    return d;
+  };
+
+  // Font catalog lives in fontlist.js (PM.FONTS, PM.FONT_DEFS, PM.fontDef).
+
+  // Knockout = felt-colored room around an item. shape: outline (follows the item), box, circle.
+  PM.defaultKo = (on, w = 12) => ({ on, color: PM.DEFAULT_FIELD, w, shape: 'outline', radius: 18 });
+  PM.KO_SHAPES = [['outline', 'Follow the shape'], ['box', 'Rounded box'], ['circle', 'Circle / oval']];
+
+  const text = (over) => Object.assign({
+    show: true, text: '', font: 'Oswald', size: 80, fill: '#3a3839', x: 1030, y: 330, maxWidth: 780,
+    letterSpacing: 0, rotate: 0, slant: 0, italic: false,
+    o1: { color: PM.DEFAULT_FIELD, w: 0 }, o2: { color: '#3a3839', w: 0 },
+    shadow: { on: false, color: '#000000', dx: 5, dy: 5 }, tail: false,
+    ko: PM.defaultKo(false),
+    // image instead of text (an uploaded or dropped wordmark): box = maxWidth x size, scaled by imgScale
+    useImg: false, img: null, imgAR: 0, imgScale: 1,
+  }, over);
+
+  // The generic starter pennant (white / gray / black).
+  PM.defaultDesign = () => ({
+    version: 1,
+    template: 'classic',
+    name: 'Starter',
+    wordStyle: 'block',
+    palette: { primary: '#3a3839', secondary: '#8b8a8b', tertiary: null, field: PM.DEFAULT_FIELD },
+    field: { color: PM.DEFAULT_FIELD, margin: 18, tipX: 1905 },
+    spine: { show: true, outer: '#3a3839', inner: '#8b8a8b', outerW: 40, innerW: 18, stitch: '#f4ecd8', stitchOn: true, stitchOuter: true, stitchSeam: true, stitchW: 1.8, dash: 7 },
+    ties: { top: { show: true, color: '#3a3839' }, bottom: { show: true, color: '#8b8a8b' }, width: 30, feltStyle: 'loops' },
+    stripes: { show: true, order: 'ABBA', colorA: '#3a3839', colorB: '#8b8a8b', thickness: 63, gap: 18, topY: 262, bottomY: 585, hide: [false, false, false, false] },
+    hoops: { show: true, wedges: true, stripes: true, wedge: '#3a3839', stripe: '#8b8a8b', wedgeH: 165, gap: 24, stripeW: 30, stripeEnd: 1900 },
+    hockey: { show: true, wedges: true, color: '#8b8a8b', wedgeH: 205, center: true, centerW: 58, centerEnd: 1790, knockout: true, knockPad: 24, medallion: true, medScale: 1.13, ring: false, ringColor: '#8b8a8b', ringW: 10, ringGap: 12 },
+    stamps: {
+      x: 180, y: 105, gap: 10, ko: PM.defaultKo(false, 6),
+      items: [{ show: true, src: null, size: 68, label: 'League' }, { show: true, src: null, size: 68, label: 'Conference' }],
+    },
+    mark: { show: true, src: null, x: 415, y: 400, size: 450, knockout: { on: true, color: PM.DEFAULT_FIELD, w: 9, shape: 'outline', radius: 24 }, ring: { on: false, color: '#3a3839', w: 4 } },
+    line1: text({ text: '', size: 78, x: 1065, y: 340, maxWidth: 560 }),
+    line2: text({ text: '', font: 'Graduate', size: 170, x: 1065, y: 500, maxWidth: 790 }),
+    extra: text({ show: false, text: '', size: 44, x: 415, y: 690, maxWidth: 420, font: 'Oswald' }),
+    maker: { show: false, src: null, x: 205, y: 690, size: 50, ko: PM.defaultKo(false, 6) },
+    // Layers panel state: lock = fixed in place; move / color = link group ('' or 'A'..'D')
+    layers: {},
+  });
+
+  const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  PM.esc = esc;
+
+  // ---------- Geometry helpers ----------
+  PM.geom = (d) => {
+    const t = PM.TEMPLATES[d.template] || PM.TEMPLATES.classic;
+    const tipX = d.field.tipX || t.tipX;
+    const tipY = (t.top + t.bottom) / 2;
+    const dx = tipX - t.bodyX;
+    const a = (tipY - t.top) / dx;      // top edge slope
+    const b = (tipY - t.bottom) / dx;   // bottom edge slope (stripes run parallel to this)
+    const m = d.field.margin;
+    const ix = (t.bottom - t.top - 2 * m) / (a - b);
+    return {
+      t, tipX, tipY, a, b,
+      body: [[t.bodyX - 2, t.top], [tipX, tipY], [t.bodyX - 2, t.bottom]],
+      inset: [[t.bodyX - 4, t.top + m], [t.bodyX + ix, t.top + m + a * ix], [t.bodyX - 4, t.bottom - m]],
+    };
+  };
+  const pts = (arr) => arr.map((p) => p.map((v) => +v.toFixed(2)).join(',')).join(' ');
+
+  // ---------- Text measuring (canvas, fonts must be loaded) ----------
+  const mctx = document.createElement('canvas').getContext('2d');
+  // CSS font shorthand for a text part: face from the catalog, plus the part's own italic toggle.
+  PM.fontCss = (t, size) => {
+    const f = PM.fontDef(t.font);
+    const italic = t.italic || f.style === 'italic';
+    return `${italic ? 'italic ' : ''}${f.weight} ${f.stretch && f.stretch !== 'normal' ? f.stretch + ' ' : ''}${size}px "${f.family}"`;
+  };
+  PM.measure = (t, size) => {
+    mctx.font = PM.fontCss(t, size);
+    const w = mctx.measureText(t.text).width;
+    return w + Math.max(0, t.text.length - 1) * (t.letterSpacing || 0) * (size / t.size);
+  };
+  PM.fitSize = (t) => {
+    if (!t.text) return t.size;
+    const w = PM.measure(t, t.size);
+    return t.maxWidth && w > t.maxWidth ? t.size * t.maxWidth / w : t.size;
+  };
+
+  // ---------- Parts ----------
+  function tailPath(x, y, w, s) {
+    const L = x - w / 2 + w * 0.04, R = x + w / 2;
+    return `M${L},${y + 0.1 * s} C${L + 0.3 * w},${y + 0.36 * s} ${R - 0.15 * w},${y + 0.22 * s} ${R + 0.45 * s},${y - 0.2 * s} ` +
+      `C${R - 0.05 * w},${y + 0.3 * s} ${L + 0.35 * w},${y + 0.24 * s} ${L},${y + 0.1 * s} Z`;
+  }
+
+  // Where a wordmark image sits: centred where the text's capitals would be, fitted inside maxWidth x size.
+  PM.lineImgBox = (l) => {
+    const bw = (l.maxWidth || 800) * (l.imgScale || 1), bh = l.size * 1.15 * (l.imgScale || 1), ar = l.imgAR || 3;
+    const w = bw / bh > ar ? bh * ar : bw, h = bw / bh > ar ? bh : bw / ar;
+    return { cx: l.x, cy: l.y - l.size * 0.36, w, h };
+  };
+  PM.lineUsesImg = (l) => !!(l.show && l.useImg && l.img);
+
+  function linePic(t, part) {
+    const b = PM.lineImgBox(t), ko = t.ko;
+    let defs = '', behind = '', filter = '';
+    if (ko && ko.on && ko.w > 0) {
+      if (ko.shape === 'outline') {
+        const fid = 'ko_' + part;
+        defs = `<defs><filter id="${fid}" x="-30%" y="-50%" width="160%" height="200%"><feMorphology in="SourceAlpha" operator="dilate" radius="${ko.w}" result="d"/>` +
+          `<feFlood flood-color="${ko.color}"/><feComposite in2="d" operator="in" result="o"/><feMerge><feMergeNode in="o"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>`;
+        filter = ` filter="url(#${fid})"`;
+      } else {
+        const L = b.cx - b.w / 2 - ko.w, T = b.cy - b.h / 2 - ko.w, W = b.w + 2 * ko.w, H = b.h + 2 * ko.w;
+        behind = ko.shape === 'circle'
+          ? `<ellipse cx="${b.cx}" cy="${b.cy}" rx="${(W / 2 * 1.12).toFixed(1)}" ry="${(H / 2 * 1.3).toFixed(1)}" fill="${ko.color}"/>`
+          : `<rect x="${L.toFixed(1)}" y="${T.toFixed(1)}" width="${W.toFixed(1)}" height="${H.toFixed(1)}" rx="${ko.radius}" fill="${ko.color}"/>`;
+      }
+    }
+    const tf = [];
+    if (t.rotate) tf.push(`rotate(${t.rotate} ${t.x} ${t.y})`);
+    if (t.slant) tf.push(`translate(${t.y * Math.tan(t.slant * Math.PI / 180)},0) skewX(${-t.slant})`);
+    return `<g data-part="${part}"${tf.length ? ` transform="${tf.join(' ')}"` : ''}>${defs}${behind}` +
+      `<image href="${t.img}" x="${(b.cx - b.w / 2).toFixed(1)}" y="${(b.cy - b.h / 2).toFixed(1)}" width="${b.w.toFixed(1)}" height="${b.h.toFixed(1)}" preserveAspectRatio="xMidYMid meet"${filter}/></g>`;
+  }
+
+  function textPart(t, part) {
+    if (PM.lineUsesImg(t)) return linePic(t, part);
+    if (!t.show || !t.text) return '';
+    const size = PM.fitSize(t);
+    const w = PM.measure(t, size);
+    const ls = (t.letterSpacing || 0) * (size / t.size);
+    const fd = PM.fontDef(t.font), italic = t.italic || fd.style === 'italic';
+    const base = `x="${t.x}" y="${t.y}" text-anchor="middle" font-family="${esc(fd.family)}" font-weight="${fd.weight}" font-size="${size.toFixed(1)}"` +
+      `${italic ? ' font-style="italic"' : ''}${fd.stretch && fd.stretch !== 'normal' ? ` font-stretch="${fd.stretch}"` : ''}${ls ? ` letter-spacing="${ls.toFixed(1)}"` : ''}`;
+    const str = esc(t.text);
+    const tail = t.tail ? tailPath(t.x, t.y, w, size) : null;
+    const layer = (fill, stroke, sw, extra = '') => {
+      const st = sw > 0 ? ` stroke="${stroke}" stroke-width="${sw}" stroke-linejoin="round" paint-order="stroke"` : '';
+      return `<g${extra}>${tail ? `<path d="${tail}" fill="${fill}"${st}/>` : ''}<text ${base} fill="${fill}"${st}>${str}</text></g>`;
+    };
+    const o1 = t.o1.w > 0 ? t.o1.w : 0, o2 = t.o2.w > 0 ? t.o2.w : 0;
+    let out = '';
+    const ko = t.ko;
+    if (ko && ko.on && ko.w > 0) {
+      if (ko.shape === 'outline') {
+        // dilate the outermost text layer and fill it with the knockout color
+        const fid = 'ko_' + part;
+        out += `<defs><filter id="${fid}" x="-30%" y="-80%" width="160%" height="260%"><feMorphology in="SourceAlpha" operator="dilate" radius="${ko.w}" result="d"/>` +
+          `<feFlood flood-color="${ko.color}"/><feComposite in2="d" operator="in"/></filter></defs>` +
+          layer('#000', '#000', 2 * (o1 + o2), ` filter="url(#${fid})"`);
+      } else {
+        const asc = 0.8 * size, desc = (t.tail ? 0.36 : 0.2) * size;
+        const L = t.x - w / 2 - ko.w, R = t.x + w / 2 + (t.tail ? 0.45 * size : 0) + ko.w;
+        const T = t.y - asc - ko.w - o1 - o2, B = t.y + desc + ko.w + o1 + o2;
+        out += ko.shape === 'circle'
+          ? `<ellipse cx="${((L + R) / 2).toFixed(1)}" cy="${((T + B) / 2).toFixed(1)}" rx="${((R - L) / 2 * 1.12).toFixed(1)}" ry="${((B - T) / 2 * 1.3).toFixed(1)}" fill="${ko.color}"/>`
+          : `<rect x="${L.toFixed(1)}" y="${T.toFixed(1)}" width="${(R - L).toFixed(1)}" height="${(B - T).toFixed(1)}" rx="${ko.radius}" fill="${ko.color}"/>`;
+      }
+    }
+    if (t.shadow.on) {
+      out += layer(t.shadow.color, t.shadow.color, 2 * (o1 + o2), ` transform="translate(${t.shadow.dx},${t.shadow.dy})"`);
+    }
+    if (o2) out += layer(t.o2.color, t.o2.color, 2 * (o1 + o2));
+    if (o1) out += layer(t.o1.color, t.o1.color, 2 * o1);
+    out += layer(t.fill, null, 0);
+    const tf = [];
+    if (t.rotate) tf.push(`rotate(${t.rotate} ${t.x} ${t.y})`);
+    if (t.slant) tf.push(`translate(${t.y * Math.tan(t.slant * Math.PI / 180)},0) skewX(${-t.slant})`);
+    return `<g data-part="${part}"${tf.length ? ` transform="${tf.join(' ')}"` : ''}>${out}</g>`;
+  }
+
+  function imagePart(id, src, x, y, size, ko, ring, placeholder, label) {
+    if (!src) {
+      if (!placeholder) return '';
+      const r = size / 2;
+      return `<g data-part="${id}" class="ph"><circle cx="${x}" cy="${y}" r="${r - 3}" fill="rgba(0,0,0,0.04)" stroke="#9a948a" stroke-width="${Math.max(2, size / 90)}" stroke-dasharray="${size / 25} ${size / 40}"/>` +
+        `<text x="${x}" y="${y + size / 22}" text-anchor="middle" font-family="Oswald" font-weight="700" font-size="${Math.max(11, size / 8)}" fill="#9a948a">${esc(label)}</text></g>`;
+    }
+    let filter = '', defs = '', behind = '';
+    // box / circle knockouts are plain shapes behind the image; 'outline' uses the dilate filter below
+    if (ko && ko.on && ko.w > 0 && ko.shape && ko.shape !== 'outline') {
+      const r = size / 2 + ko.w;
+      behind = ko.shape === 'circle' ? `<circle cx="${x}" cy="${y}" r="${r.toFixed(1)}" fill="${ko.color}"/>`
+        : `<rect x="${(x - r).toFixed(1)}" y="${(y - r).toFixed(1)}" width="${(2 * r).toFixed(1)}" height="${(2 * r).toFixed(1)}" rx="${ko.radius}" fill="${ko.color}"/>`;
+      ko = null;
+    }
+    if ((ko && ko.on && ko.w > 0) || (ring && ring.on && ring.w > 0)) {
+      const fid = 'f_' + id;
+      const k = ko && ko.on ? ko.w : 0, r = ring && ring.on ? ring.w : 0;
+      defs = `<filter id="${fid}" x="-25%" y="-25%" width="150%" height="150%">` +
+        (r ? `<feMorphology in="SourceAlpha" operator="dilate" radius="${k + r}" result="d2"/><feFlood flood-color="${ring.color}"/><feComposite in2="d2" operator="in" result="o2"/>` : '') +
+        (k ? `<feMorphology in="SourceAlpha" operator="dilate" radius="${k}" result="d1"/><feFlood flood-color="${ko.color}"/><feComposite in2="d1" operator="in" result="o1"/>` : '') +
+        `<feMerge>${r ? '<feMergeNode in="o2"/>' : ''}${k ? '<feMergeNode in="o1"/>' : ''}<feMergeNode in="SourceGraphic"/></feMerge></filter>`;
+      filter = ` filter="url(#${fid})"`;
+    }
+    return `<g data-part="${id}">${defs ? `<defs>${defs}</defs>` : ''}${behind}<image href="${src}" x="${x - size / 2}" y="${y - size / 2}" width="${size}" height="${size}" preserveAspectRatio="xMidYMid meet"${filter}/></g>`;
+  }
+
+  // ---------- Main render ----------
+  // opts: { layer: 'all'|'base'|'applique', parts: [...], tieStyle: 'chevron'|'loops', placeholders, fontCss, bg }
+  // parts (felt mockup draws each separately): ties, field, stripes, spine, stitch, applique
+  PM.LAYERS = { base: ['ties', 'field', 'stripes', 'spine', 'stitch'], applique: ['applique'] };
+  PM.renderSVG = (d, opts = {}) => {
+    const g = PM.geom(d), t = g.t;
+    const layer = opts.layer || 'all';
+    const parts = new Set(opts.parts || (layer === 'all' ? [...PM.LAYERS.base, ...PM.LAYERS.applique] : PM.LAYERS[layer]));
+    const has = (p) => parts.has(p);
+    let s = '';
+
+    {
+      // Ties (behind spine). Chevron = the flat graphic; loops = folded fabric tabs (felt look).
+      const loops = (opts.tieStyle || 'chevron') === 'loops';
+      const tie = (cfg, y, id) => {
+        if (!cfg.show) return '';
+        if (!loops) return `<polyline data-part="${id}" points="${pts([[18, y - 44], [t.spineX + 6, y], [18, y + 44]])}" fill="none" stroke="${cfg.color}" stroke-width="${d.ties.width}" stroke-linejoin="miter" stroke-miterlimit="6"/>`;
+        const w = d.ties.width * 1.1, x0 = 4, x1 = t.spineX + 10;
+        const tab = (dy, ang) => `<path transform="rotate(${ang} ${x1} ${y + dy})" d="M${x1},${y + dy - w / 2} H${x0 + w * 0.45} Q${x0},${y + dy - w / 2} ${x0},${y + dy} Q${x0},${y + dy + w / 2} ${x0 + w * 0.45},${y + dy + w / 2} H${x1} Z" fill="${cfg.color}"/>`;
+        return `<g data-part="${id}">${tab(-w * 0.62, 5)}${tab(w * 0.62, -5)}</g>`;
+      };
+      if (has('ties')) s += tie(d.ties.top, t.tieTopY, 'tieTop') + tie(d.ties.bottom, t.tieBottomY, 'tieBottom');
+
+      // Felt body
+      if (has('field')) s += `<polygon data-part="field" points="${pts(g.body)}" fill="${d.field.color}"/>`;
+
+      // Background pattern (template-specific: diagonal stripes, corner wedges, ...)
+      if (has('stripes')) s += (PM.TEMPLATES[d.template] || PM.TEMPLATES.classic).pattern(d, g);
+
+      // Two-tone spine + stitching
+      if (d.spine.show) {
+        const sp = d.spine, x = t.spineX, h = t.bottom - t.top;
+        if (has('spine')) s += `<g data-part="spine"><rect x="${x}" y="${t.top}" width="${sp.outerW}" height="${h}" fill="${sp.outer}"/>` +
+          `<rect x="${x + sp.outerW}" y="${t.top}" width="${sp.innerW}" height="${h}" fill="${sp.inner}"/></g>`;
+        if (has('stitch') && sp.stitchOn) {
+          const line = (lx) => `<line x1="${lx}" y1="${t.top + 2}" x2="${lx}" y2="${t.bottom - 2}" stroke="${sp.stitch}" stroke-width="${sp.stitchW}" stroke-dasharray="${sp.dash} ${sp.dash * 0.55}" stroke-linecap="round"/>`;
+          s += `<g data-part="stitch">${sp.stitchOuter ? line(x + 4) : ''}${sp.stitchSeam ? line(x + sp.outerW + 4) : ''}</g>`;
+        }
+      }
+    }
+
+    if (has('applique')) {
+      const ph = !!opts.placeholders;
+      // League / conference stamps
+      const S = d.stamps; let sx = S.x;
+      s += `<g data-part="stamps">`;
+      S.items.forEach((it, i) => {
+        if (!it.show) return;
+        if (!it.src && !ph) return;
+        s += imagePart('stamp' + (i + 1), it.src, sx + it.size / 2, S.y, it.size, S.ko, null, ph, it.label || 'Stamp');
+        sx += it.size + S.gap;
+      });
+      s += `</g>`;
+      if (d.mark.show) s += imagePart('mark', d.mark.src, d.mark.x, d.mark.y, d.mark.size, d.mark.knockout, d.mark.ring, ph, 'PRIMARY MARK');
+      s += textPart(d.extra, 'extra');
+      s += textPart(d.line2, 'line2');
+      s += textPart(d.line1, 'line1');
+      if (d.maker.show) s += imagePart('maker', d.maker.src, d.maker.x, d.maker.y, d.maker.size, d.maker.ko, null, ph, 'MAKER');
+    }
+
+    const W = t.W, H = t.H;
+    const bg = opts.bg ? `<rect width="${W}" height="${H}" fill="${opts.bg}"/>` : '';
+    const style = opts.fontCss ? `<style>${opts.fontCss}</style>` : '';
+    return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 ${W} ${H}" width="${opts.width || W}" height="${opts.height || H}"${opts.crisp ? ' shape-rendering="crispEdges"' : ''}>${style}${bg}${s}</svg>`;
+  };
+
+  // Colors that appear in the design (used for 8-bit palette + swatches)
+  PM.designColors = (d) => {
+    const set = new Set([d.field.color, d.spine.outer, d.spine.inner, d.spine.stitch, d.stripes.colorA, d.stripes.colorB,
+      d.ties.top.color, d.ties.bottom.color, d.hoops.wedge, d.hoops.stripe, d.hockey.color, d.line1.fill, d.line2.fill, d.line2.o1.color, d.line2.o2.color, d.line1.o1.color]
+      .map(PM.colors.norm).filter(Boolean));
+    return [...set];
+  };
+})(window.PM);

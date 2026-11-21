@@ -1,0 +1,16 @@
+# Render blueprint: https://render.com/docs/blueprint-spec
+# New > Blueprint > pick this repo. Render builds it, gives it a URL, and you add your domain after.
+services:
+  - type: web
+    name: pennant-maker
+    runtime: node
+    plan: free               # free sleeps after ~15 min idle (slow first load); "starter" is paid and stays awake
+    buildCommand: npm install --omit=dev --no-audit --no-fund
+    startCommand: node server.js
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: NODE_VERSION
+        value: "22"
