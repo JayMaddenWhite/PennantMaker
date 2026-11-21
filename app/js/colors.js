@@ -72,6 +72,7 @@ window.PM = window.PM || {};
     slab: { label: 'Slab (Angels)', l1Font: 'Oswald', l2Font: 'Alfa Slab One' },
     hoops: { label: 'Retro hoops (80s NBA)', l1Font: 'Alfa Slab One', l2Font: 'Alfa Slab One' },
     hockey: { label: 'Clean sans (80s NHL)', l1Font: 'Montserrat', l2Font: 'Montserrat' },
+    split: { label: 'Felt letters (on colour)', l1Font: 'Oswald', l2Font: 'Graduate' },
     gothic: { label: 'Tall gothic (League Gothic)', l1Font: 'League Gothic', l2Font: 'League Gothic Condensed' },
     tight: { label: 'Modern tight (Inter Tight)', l1Font: 'Inter Tight Bold', l2Font: 'Inter Tight Black Italic' },
   };
@@ -124,6 +125,9 @@ window.PM = window.PM || {};
     }
     else if (style === 'tight') {
       l2.fill = textColor; l2.o1 = { color: F, w: 0 }; l2.o2 = { color: P, w: 0 }; l2.shadow.on = false; l1.fill = textColor;
+    }
+    else if (style === 'split') {
+      l2.fill = F; l2.o1 = { color: F, w: 0 }; l2.o2 = { color: C.darken(P, 0.35), w: 4 }; l2.shadow.on = false; l1.fill = F; l1.o2 = { color: C.darken(P, 0.35), w: 3 };
     }
     else if (style === 'hockey') {
       l2.fill = textColor; l2.o1 = { color: F, w: 0 }; l2.o2 = { color: P, w: 0 }; l2.shadow.on = false; l1.fill = textColor;

@@ -480,8 +480,27 @@
       ],
     },
     pattern: {
-      title: () => ({ hoops: 'Corner wedges & stripes', hockey: 'Wedges, center stripe & medallion' })[st.d.template] || 'Stripes',
-      build: () => st.d.template === 'hockey' ? [
+      title: () => ({ hoops: 'Corner wedges & stripes', hockey: 'Wedges, center stripe & medallion', edge: 'Edge trim stripes', split: 'Two-tone split', bands: 'College bands', gridiron: 'Football field' })[st.d.template] || 'Stripes',
+      build: () => st.d.template === 'edge' ? [
+        row('Show pattern', cCheck('edge.show')),
+        row('Outer stripe', cColor('edge.colorA')), row('Inner stripe', cColor('edge.colorB')),
+        row('Stripe width', cRange('edge.w', 8, 90)), row('Gap', cRange('edge.gap', 0, 60)), row('Inset from edge', cRange('edge.inset', 0, 80)),
+      ] : st.d.template === 'split' ? [
+        row('Show pattern', cCheck('split.show')),
+        row('Top colour', cColor('split.top')), row('Bottom colour', cColor('split.bottom')),
+        row('Divider colour', cColor('split.divider')), row('Divider width', cRange('split.divW', 0, 80)),
+        row('Split height', cRange('split.offset', -200, 200)),
+      ] : st.d.template === 'bands' ? [
+        row('Show pattern', cCheck('bands.show')),
+        row('Colour A', cColor('bands.colorA')), row('Colour B', cColor('bands.colorB')),
+        row('Number of bands', cRange('bands.count', 1, 7)), row('Band width', cRange('bands.w', 10, 140)),
+        row('Gap', cRange('bands.gap', 0, 60)), row('Start from spine', cRange('bands.start', 0, 300)),
+      ] : st.d.template === 'gridiron' ? [
+        row('Show pattern', cCheck('grid.show')),
+        row('Field colour', cColor('grid.field')), row('End zone', cColor('grid.endzone')), row('Lines', cColor('grid.lines')),
+        row('End zone width', cRange('grid.endW', 0, 400)), row('Yard line spacing', cRange('grid.every', 60, 300)),
+        row('Hash marks', cCheck('grid.hash')),
+      ] : st.d.template === 'hockey' ? [
         row('Show pattern', cCheck('hockey.show')),
         row('Color', cColor('hockey.color')),
         row('Corner wedges', cCheck('hockey.wedges')), row('Wedge depth', cRange('hockey.wedgeH', 80, 320)),
@@ -554,7 +573,7 @@
   const VIS = {
     line1: ['line1.show'], line2: ['line2.show'], extra: ['extra.show'], mark: ['mark.show'], maker: ['maker.show'],
     stamps: ['stamps.items.0.show', 'stamps.items.1.show'], spine: ['spine.show'], ties: ['ties.top.show', 'ties.bottom.show'],
-    pattern: [() => ({ classic: 'stripes.show', hoops: 'hoops.show', hockey: 'hockey.show' })[st.d.template]],
+    pattern: [() => ({ classic: 'stripes.show', hoops: 'hoops.show', hockey: 'hockey.show', edge: 'edge.show', split: 'split.show', bands: 'bands.show', gridiron: 'grid.show' })[st.d.template]],
   };
   const GROUPS = ['', 'A', 'B', 'C', 'D'];
   function layersPanel() {
@@ -713,7 +732,7 @@
   ];
   const SUGGEST_KEYS = {
     spine: ['spine.outer', 'spine.inner', 'spine.stitch'], ties: ['ties.top.color', 'ties.bottom.color'],
-    pattern: ['stripes.colorA', 'stripes.colorB', 'hoops.wedge', 'hoops.stripe', 'hockey.color', 'hockey.ringColor', 'spine.outer', 'spine.inner'], mark: ['mark.knockout', 'mark.ring'],
+    pattern: ['stripes.colorA', 'stripes.colorB', 'hoops.wedge', 'hoops.stripe', 'hockey.color', 'hockey.ringColor', 'edge.colorA', 'edge.colorB', 'split.top', 'split.bottom', 'split.divider', 'bands.colorA', 'bands.colorB', 'grid.field', 'grid.endzone', 'grid.lines', 'spine.outer', 'spine.inner'], mark: ['mark.knockout', 'mark.ring'],
     line1: ['line1.font', 'line1.fill', 'line1.o1', 'line1.o2', 'line1.shadow', 'line1.tail', 'line1.rotate'],
     line2: ['line2.font', 'line2.fill', 'line2.o1', 'line2.o2', 'line2.shadow', 'line2.tail', 'line2.rotate', 'line2.size', 'line2.y'],
     field: ['field.color'], extra: ['extra.fill'],
@@ -803,7 +822,7 @@
         h('div', { class: 'btns', style: 'margin-top:6px' },
           h('button', { onclick: () => csvIn.click() }, 'Load CSV'),
           h('button', { onclick: () => PM.out.download(new Blob([PM.bulk.sample()], { type: 'text/csv' }), 'pennant-template.csv') }, 'Download template')), csvIn,
-        h('p', { class: 'fine' }, 'Columns: ' + PM.bulk.COLUMNS.join(', ') + '. template = baseball, hoops or hockey (blank matches the sport). era = a year like 1985 for the logo used that year (blank = current). style = block / outline / script / modern / slab / hoops / hockey. order = ABBA or ABAB. ties = both / top / bottom / none. stamp = file, link or none. league = nfl, mlb, nba, nhl, cfb, cbb, cbase, epl, efl…')),
+        h('p', { class: 'fine' }, 'Columns: ' + PM.bulk.COLUMNS.join(', ') + '. template = baseball, hoops, hockey, gridiron, edge, split or bands (blank matches the sport). era = a year like 1985 for the logo used that year (blank = current). style = block / outline / script / modern / slab / hoops / hockey. order = ABBA or ABAB. ties = both / top / bottom / none. stamp = file, link or none. league = nfl, mlb, nba, nhl, cfb, cbb, cbase, epl, efl…')),
       h('div', { class: 'card' }, h('h3', {}, '2. Logo files (optional)'), logos, logoCount),
       h('div', { class: 'card' }, h('h3', {}, '3. Outputs'),
         h('div', { class: 'col' }, outChk('png', 'Flat PNG'), outChk('svg', 'Vector SVG'), outChk('felt', 'Felt PNG'), outChk('aged', 'Aged PNG'), outChk('pixel', '8-bit PNG'), outChk('sheet', 'Contact sheet')),

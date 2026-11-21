@@ -53,7 +53,8 @@ window.PM = window.PM || {};
     }
     // Background: baseball / hoops, or blank = match the sport
     const tv = (row.template || '').toLowerCase();
-    const tplKey = /hoop|nba|basket/.test(tv) ? 'hoops' : /hock|nhl/.test(tv) ? 'hockey' : /base|mlb|classic/.test(tv) ? 'classic' : PM.auto.templateFor(team);
+    const tplKey = /hoop|nba|basket/.test(tv) ? 'hoops' : /hock|nhl/.test(tv) ? 'hockey' : /grid|foot|nfl/.test(tv) ? 'gridiron'
+      : /edge|trim/.test(tv) ? 'edge' : /split|two/.test(tv) ? 'split' : /band|college/.test(tv) ? 'bands' : /base|mlb|classic/.test(tv) ? 'classic' : PM.auto.templateFor(team);
     d = PM.setTemplate(d, tplKey);
     const userLogo = await resolveImg(row.logo, files).catch(() => null);
     const t = Object.assign({ name: row.name, location: '', nickname: row.name }, team || {});

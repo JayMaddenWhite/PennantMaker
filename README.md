@@ -1,6 +1,6 @@
 # Pennant Maker
 
-Design team pennants on three background templates: **Vintage Baseball** (diagonal stripe pairs),
+Design team pennants on seven background templates: **Vintage Baseball** (diagonal stripe pairs), **Edge Trim**, **Split Two-Tone**, **College Bands**, **Gridiron**,
 **Vintage Hoops** (80s NBA corner wedges + accent stripes) and **Vintage Hockey** (80s NHL inset
 wedges, center stripe and logo medallion). Every part can be edited on its own:
 the felt, the two-tone spine and its stitching, the ties, the 4 stripes (mirrored A B / B A

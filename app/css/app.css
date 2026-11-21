@@ -160,21 +160,9 @@ button.primary:hover:not(:disabled) { background: var(--accent-hover); border-co
 input[type=checkbox], input[type=radio], input[type=range] { accent-color: var(--accent); }
 
 /* ===== Green Monster dressing ===== */
-/* wall panels: vertical seams every 140px with a pair of rivets, plus a faint paint grain */
-body {
-  background-color: var(--monster-deep);
-  background-image:
-    radial-gradient(circle at 70px 18px, var(--rivet) 1.6px, transparent 2.2px),
-    linear-gradient(90deg, var(--seam) 0 2px, transparent 2px);
-  background-size: 140px 120px, 140px 100%;
-}
-.panel, .top, .export, details.sec, .card {
-  background-color: var(--monster);
-  background-image:
-    linear-gradient(90deg, transparent 0 calc(100% - 2px), var(--seam) calc(100% - 2px)),
-    radial-gradient(circle at 8px 10px, var(--rivet) 1.4px, transparent 2px);
-  background-size: 120px 100%, 120px 64px;
-}
+/* plain painted wall: solid greens, no seams or rivets */
+body { background: var(--monster-deep); }
+.panel, .top, .export, details.sec, .card { background-color: var(--monster); background-image: none; }
 /* the yellow home-run line runs along the top of the wall */
 .top { border-bottom: 4px solid var(--yellow); box-shadow: 0 2px 0 rgba(0,0,0,.35); }
 .panel { border-right: 3px solid var(--monster-deep); }

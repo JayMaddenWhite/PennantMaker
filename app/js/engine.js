@@ -156,6 +156,149 @@ window.PM = window.PM || {};
         for (const l of [d.line1, d.line2]) if (l.fill === p.primary || l.fill === p.secondary || l.fill === '#141414') l.fill = txt;
       },
     }),
+
+    // ---------- Edge Trim: stripes follow both slanted edges and meet at the tip ----------
+    edge: Object.assign({}, GEO, {
+      name: 'Edge Trim',
+      pattern(d, g) {
+        const e = d.edge, t = g.t;
+        if (!e.show) return '';
+        const x0 = t.bodyX - 4, x1 = g.tipX + 20, m = d.field.margin;
+        const band = (yAt, slope, o, w, c) => poly([[x0, yAt + o], [x1, yAt + o + slope * (x1 - t.bodyX)], [x1, yAt + o + w + slope * (x1 - t.bodyX)], [x0, yAt + o + w]], c);
+        // each pair stays on its own half (top above the centre line, bottom below) so they meet in a chevron
+        const yc = (t.top + t.bottom) / 2;
+        let s = insetClip('patClip', g) + `<defs><clipPath id="edgeTop"><rect x="0" y="0" width="${x1 + 20}" height="${yc}"/></clipPath>` +
+          `<clipPath id="edgeBot"><rect x="0" y="${yc}" width="${x1 + 20}" height="${t.bottom + 20}"/></clipPath></defs>` +
+          `<g data-part="pattern" clip-path="url(#patClip)">`;
+        // top edge: offsets measured downward from the top edge; bottom edge: upward from the bottom edge
+        const o1 = m + e.inset, o2 = o1 + e.w + e.gap;
+        s += `<g clip-path="url(#edgeTop)">` + band(t.top, g.a, o1, e.w, e.colorA) + band(t.top, g.a, o2, e.w, e.colorB) + `</g>`;
+        s += `<g clip-path="url(#edgeBot)">` + band(t.bottom, g.b, -o1 - e.w, e.w, e.colorA) + band(t.bottom, g.b, -o2 - e.w, e.w, e.colorB) + `</g>`;
+        return s + `</g>`;
+      },
+      defaults: {
+        wordStyle: 'slab',
+        field: { margin: 16, tipX: 1905 },
+        spine: { outerW: 40, innerW: 18, stitchSeam: true },
+        ties: { top: { show: true }, bottom: { show: true } },
+        stamps: { x: 180, y: 138, items: [{ show: true, size: 62 }, { show: true, size: 62 }] },
+        mark: { x: 400, y: 404, size: 340 },
+        line1: { x: 840, y: 340, size: 58, maxWidth: 430 },
+        line2: { x: 840, y: 478, size: 124, maxWidth: 560 },
+        extra: { x: 420, y: 640 },
+        maker: { x: 205, y: 690 },
+      },
+      field: PM.DEFAULT_FIELD,
+      layout: { l1y: 340, l2y: 478, soloY: 440, size2: 124 },
+      palette(d, p) { d.edge.colorA = p.primary; d.edge.colorB = p.secondary; },
+    }),
+
+    // ---------- Split Two-Tone: top half one colour, bottom half another, felt divider ----------
+    split: Object.assign({}, GEO, {
+      name: 'Split Two-Tone',
+      pattern(d, g) {
+        const k = d.split, t = g.t;
+        if (!k.show) return '';
+        const x0 = t.bodyX - 4, x1 = g.tipX + 20, yc = (t.top + t.bottom) / 2 + k.offset, h = k.divW / 2;
+        let s = insetClip('patClip', g) + `<g data-part="pattern" clip-path="url(#patClip)">`;
+        s += poly([[x0, t.top - 10], [x1, t.top - 10], [x1, yc - h], [x0, yc - h]], k.top);
+        s += poly([[x0, yc + h], [x1, yc + h], [x1, t.bottom + 10], [x0, t.bottom + 10]], k.bottom);
+        if (k.divW > 0) s += poly([[x0, yc - h], [x1, yc - h], [x1, yc + h], [x0, yc + h]], k.divider);
+        return s + `</g>`;
+      },
+      defaults: {
+        wordStyle: 'split',
+        field: { margin: 18, tipX: 1905 },
+        spine: { outerW: 40, innerW: 18, stitchSeam: true },
+        ties: { top: { show: true }, bottom: { show: true } },
+        stamps: { x: 180, y: 105, items: [{ show: true, size: 64 }, { show: true, size: 64 }] },
+        mark: { x: 420, y: 404, size: 420 },
+        line1: { x: 1060, y: 360, size: 74, maxWidth: 560 },
+        line2: { x: 1060, y: 500, size: 160, maxWidth: 760 },
+        extra: { x: 420, y: 690 },
+        maker: { x: 205, y: 690 },
+      },
+      field: PM.DEFAULT_FIELD,
+      layout: { l1y: 360, l2y: 500, soloY: 460, size2: 160 },
+      // colour fills the pennant: felt-coloured lettering with a dark outline reads on both halves
+      palette(d, p) {
+        const C = PM.colors;
+        d.split.top = p.primary; d.split.bottom = p.secondary; d.split.divider = d.field.color;
+        const dark = C.lum(p.primary) <= C.lum(p.secondary) ? p.primary : p.secondary;
+        for (const l of [d.line1, d.line2]) { l.fill = d.field.color; l.o1 = { color: d.field.color, w: 0 }; l.o2 = { color: C.darken(dark, 0.35), w: 4 }; l.shadow.on = false; l.tail = false; }
+      },
+    }),
+
+    // ---------- College Bands: upright colour bands near the spine ----------
+    bands: Object.assign({}, GEO, {
+      name: 'College Bands',
+      pattern(d, g) {
+        const k = d.bands, t = g.t;
+        if (!k.show) return '';
+        let s = insetClip('patClip', g) + `<g data-part="pattern" clip-path="url(#patClip)">`;
+        let x = t.bodyX + k.start;
+        for (let i = 0; i < k.count; i++) {
+          s += poly([[x, t.top - 10], [x + k.w, t.top - 10], [x + k.w, t.bottom + 10], [x, t.bottom + 10]], i % 2 ? k.colorB : k.colorA);
+          x += k.w + k.gap;
+        }
+        return s + `</g>`;
+      },
+      defaults: {
+        wordStyle: 'block',
+        field: { margin: 18, tipX: 1905 },
+        spine: { outerW: 40, innerW: 18, stitchSeam: true },
+        ties: { top: { show: true }, bottom: { show: true } },
+        stamps: { x: 440, y: 150, items: [{ show: true, size: 58 }, { show: false, size: 58 }] },
+        mark: { x: 560, y: 404, size: 340 },
+        line1: { x: 1130, y: 358, size: 66, maxWidth: 520 },
+        line2: { x: 1130, y: 486, size: 140, maxWidth: 660 },
+        extra: { x: 560, y: 640 },
+        maker: { x: 205, y: 690 },
+      },
+      field: PM.DEFAULT_FIELD,
+      layout: { l1y: 358, l2y: 486, soloY: 440, size2: 140 },
+      palette(d, p) { d.bands.colorA = p.primary; d.bands.colorB = p.secondary; },
+    }),
+
+    // ---------- Gridiron: football field with an end zone, yard lines and hash marks ----------
+    gridiron: Object.assign({}, GEO, {
+      name: 'Gridiron',
+      pattern(d, g) {
+        const k = d.grid, t = g.t;
+        if (!k.show) return '';
+        const x0 = t.bodyX - 4, x1 = g.tipX + 20, ez = t.bodyX + k.endW;
+        let s = insetClip('patClip', g) + `<g data-part="pattern" clip-path="url(#patClip)">`;
+        s += poly([[x0, t.top - 10], [x1, t.top - 10], [x1, t.bottom + 10], [x0, t.bottom + 10]], k.field);
+        if (k.endW > 0) s += poly([[x0, t.top - 10], [ez, t.top - 10], [ez, t.bottom + 10], [x0, t.bottom + 10]], k.endzone);
+        const lw = 6, yc = (t.top + t.bottom) / 2;
+        for (let x = ez; x < g.tipX - 40; x += k.every) {
+          s += `<rect x="${x - lw / 2}" y="${t.top - 10}" width="${lw}" height="${t.bottom - t.top + 20}" fill="${k.lines}"/>`;
+          if (k.hash) for (let hx = x + k.every / 5; hx < x + k.every - 4 && hx < g.tipX - 60; hx += k.every / 5)
+            for (const hy of [yc - 120, yc + 120]) s += `<rect x="${hx - 2.5}" y="${hy - 12}" width="5" height="24" fill="${k.lines}"/>`;
+        }
+        return s + `</g>`;
+      },
+      defaults: {
+        wordStyle: 'split',
+        field: { margin: 18, tipX: 1905 },
+        spine: { outerW: 40, innerW: 18, stitchSeam: true },
+        ties: { top: { show: true }, bottom: { show: true } },
+        stamps: { x: 180, y: 105, items: [{ show: true, size: 60 }, { show: true, size: 60 }] },
+        mark: { x: 470, y: 404, size: 400 },
+        line1: { x: 1080, y: 360, size: 72, maxWidth: 560 },
+        line2: { x: 1080, y: 496, size: 156, maxWidth: 740 },
+        extra: { x: 470, y: 690 },
+        maker: { x: 205, y: 690 },
+      },
+      field: PM.DEFAULT_FIELD,
+      layout: { l1y: 360, l2y: 496, soloY: 455, size2: 156 },
+      palette(d, p) {
+        const C = PM.colors;
+        const [dark, light] = C.lum(p.primary) <= C.lum(p.secondary) ? [p.primary, p.secondary] : [p.secondary, p.primary];
+        d.grid.field = dark; d.grid.endzone = light; d.grid.lines = d.field.color;
+        for (const l of [d.line1, d.line2]) { l.fill = d.field.color; l.o1 = { color: d.field.color, w: 0 }; l.o2 = { color: light, w: 4 }; l.shadow.on = false; l.tail = false; }
+      },
+    }),
   };
 
   // Recursive merge; arrays of objects merge item by item (so logos in stamp slots survive).
@@ -179,11 +322,21 @@ window.PM = window.PM || {};
   PM.layer = (d, k) => (d.layers && d.layers[k]) || {};
   PM.isLocked = (d, k) => !!PM.layer(d, k).lock;
   // the design objects a layer key owns (the pattern layer covers every template's pattern settings)
-  PM.layerObjects = (d, k) => (k === 'pattern' ? [d.stripes, d.hoops, d.hockey] : [d[k]]).filter(Boolean);
+  PM.layerObjects = (d, k) => (k === 'pattern' ? [d.stripes, d.hoops, d.hockey, d.edge, d.split, d.bands, d.grid] : [d[k]]).filter(Boolean);
+
+  // Older saved designs lack settings added later (new backgrounds etc.): fill them in from the defaults.
+  PM.fillMissing = (d) => {
+    if (!d || d.__filled) return d;
+    const def = PM.defaultDesign();
+    for (const k of Object.keys(def)) if (d[k] === undefined) d[k] = def[k];
+    Object.defineProperty(d, '__filled', { value: true, enumerable: false });
+    return d;
+  };
 
   // Switch a design to another background: apply that template's layout, then recolor.
   PM.setTemplate = (d, key) => {
     const tpl = PM.TEMPLATES[key]; if (!tpl) return d;
+    PM.fillMissing(d);
     const prevField = (PM.TEMPLATES[d.template] || {}).field;
     d.template = key;
     const defs = JSON.parse(JSON.stringify(tpl.defaults));
@@ -227,6 +380,10 @@ window.PM = window.PM || {};
     ties: { top: { show: true, color: '#3a3839' }, bottom: { show: true, color: '#8b8a8b' }, width: 30, feltStyle: 'loops' },
     stripes: { show: true, order: 'ABBA', colorA: '#3a3839', colorB: '#8b8a8b', thickness: 63, gap: 18, topY: 262, bottomY: 585, hide: [false, false, false, false] },
     hoops: { show: true, wedges: true, stripes: true, wedge: '#3a3839', stripe: '#8b8a8b', wedgeH: 165, gap: 24, stripeW: 30, stripeEnd: 1900 },
+    edge: { show: true, colorA: '#3a3839', colorB: '#8b8a8b', w: 26, gap: 10, inset: 10 },
+    split: { show: true, top: '#3a3839', bottom: '#8b8a8b', divider: PM.DEFAULT_FIELD, divW: 18, offset: 0 },
+    bands: { show: true, colorA: '#3a3839', colorB: '#8b8a8b', w: 52, gap: 14, count: 3, start: 14 },
+    grid: { show: true, field: '#3a3839', endzone: '#8b8a8b', lines: PM.DEFAULT_FIELD, every: 150, endW: 150, hash: true },
     hockey: { show: true, wedges: true, color: '#8b8a8b', wedgeH: 205, center: true, centerW: 58, centerEnd: 1790, knockout: true, knockPad: 24, medallion: true, medScale: 1.13, ring: false, ringColor: '#8b8a8b', ringW: 10, ringGap: 12 },
     stamps: {
       x: 180, y: 105, gap: 10, ko: PM.defaultKo(false, 6),
@@ -397,6 +554,7 @@ window.PM = window.PM || {};
   // parts (felt mockup draws each separately): ties, field, stripes, spine, stitch, applique
   PM.LAYERS = { base: ['ties', 'field', 'stripes', 'spine', 'stitch'], applique: ['applique'] };
   PM.renderSVG = (d, opts = {}) => {
+    PM.fillMissing(d);
     const g = PM.geom(d), t = g.t;
     const layer = opts.layer || 'all';
     const parts = new Set(opts.parts || (layer === 'all' ? [...PM.LAYERS.base, ...PM.LAYERS.applique] : PM.LAYERS[layer]));
@@ -460,8 +618,9 @@ window.PM = window.PM || {};
 
   // Colors that appear in the design (used for 8-bit palette + swatches)
   PM.designColors = (d) => {
+    PM.fillMissing(d);
     const set = new Set([d.field.color, d.spine.outer, d.spine.inner, d.spine.stitch, d.stripes.colorA, d.stripes.colorB,
-      d.ties.top.color, d.ties.bottom.color, d.hoops.wedge, d.hoops.stripe, d.hockey.color, d.line1.fill, d.line2.fill, d.line2.o1.color, d.line2.o2.color, d.line1.o1.color]
+      d.ties.top.color, d.ties.bottom.color, d.hoops.wedge, d.hoops.stripe, d.hockey.color, d.edge.colorA, d.edge.colorB, d.split.top, d.split.bottom, d.bands.colorA, d.bands.colorB, d.grid.field, d.grid.endzone, d.line1.fill, d.line2.fill, d.line2.o1.color, d.line2.o2.color, d.line1.o1.color]
       .map(PM.colors.norm).filter(Boolean));
     return [...set];
   };

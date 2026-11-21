@@ -81,6 +81,7 @@ window.PM = window.PM || {};
     const L = team && PM.sources.ESPN.find((l) => l.id === team.leagueId);
     if (L && L.sport === 'basketball') return 'hoops';
     if (L && L.sport === 'hockey') return 'hockey';
+    if (L && L.sport === 'football') return 'gridiron';
     if (team && /hockey|nhl/i.test(team.leagueLabel || '')) return 'hockey';
     if (team && /basketball|nba|wnba/i.test(team.leagueLabel || '')) return 'hoops';
     return 'classic';

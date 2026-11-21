@@ -358,6 +358,7 @@ window.PM = window.PM || {};
 
   // → { w, h, px: Uint8ClampedArray RGBA } at native pixel size
   R.pixelGrid = async (d, { w = 128, preset = 'nes', maxColors = 0 } = {}) => {
+    PM.fillMissing(d);
     const t = T(), W = Math.round(w), H = Math.round(w * t.H / t.W), k = W / t.W;
     const P = R.PIXEL_PRESETS[preset] || R.PIXEL_PRESETS.nes;
     const blank = () => new Uint8ClampedArray(W * H * 4);
@@ -368,7 +369,7 @@ window.PM = window.PM || {};
     {
       // the browser smooths edges even with crispEdges: snap every felt pixel to an actual pennant color
       const base = [...new Set([d.field.color, d.spine.outer, d.spine.inner, d.ties.top.color, d.ties.bottom.color,
-        d.stripes.colorA, d.stripes.colorB, d.hoops.wedge, d.hoops.stripe, d.hockey.color, d.hockey.ringColor].map(PM.colors.norm).filter(Boolean))].map(PM.colors.rgb);
+        d.stripes.colorA, d.stripes.colorB, d.hoops.wedge, d.hoops.stripe, d.hockey.color, d.hockey.ringColor, d.edge.colorA, d.edge.colorB, d.split.top, d.split.bottom, d.split.divider, d.bands.colorA, d.bands.colorB, d.grid.field, d.grid.endzone, d.grid.lines].map(PM.colors.norm).filter(Boolean))].map(PM.colors.rgb);
       for (let i = 0; i < px.length; i += 4) {
         if (!px[i + 3]) continue;
         let best = base[0], bd = 1e9;
