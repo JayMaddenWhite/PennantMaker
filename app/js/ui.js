@@ -864,6 +864,14 @@
       if (fmt === 'svg') {
         const svg = await PM.out.svg(st.d, { bg: bg === 'transparent' ? null : bg === 'wall' ? '#e6ded1' : bg });
         await PM.out.saveAs(new Blob([svg], { type: 'image/svg+xml' }), fileBase() + '.svg');
+      } else if (fmt === 'printpdf' || fmt === 'tiled' || fmt === 'cut') {
+        const heightIn = +$('#exSize').value || 12, size = PM.print.sizeLabel(st.d, heightIn).replace(/ /g, '');
+        if (fmt === 'printpdf') await PM.out.saveAs(await PM.print.printPdf(st.d, { heightIn }), `${fileBase()} (print ${size}).pdf`);
+        else if (fmt === 'tiled') {
+          const r = await PM.print.tiledPdf(st.d, { heightIn, paper: $('#exPaper').value });
+          await PM.out.saveAs(r.blob, `${fileBase()} (home print ${size}, ${r.pages} pages).pdf`);
+          toast(`${r.pages} pages (${r.cols} across × ${r.rows} down). Print at 100% / actual size.`, 5000);
+        } else await PM.out.saveAs(await PM.print.cutFiles(st.d, { heightIn }), `${fileBase()} (felt cut files ${size}).zip`);
       } else if (fmt === 'chart') {
         const kind = $('#exChart').value;
         const c = await PM.out.chart(st.d, { cells: +$('#exCells').value || 58, kind, maxColors: +$('#exColors').value || 10 });
@@ -879,12 +887,20 @@
     } catch (e) { console.error(e); toast('Export failed: ' + e.message, 4000); }
     btn.disabled = false; syncExportUi();
   }
-  const EX_LABEL = { svg: 'Download SVG', png: 'Download flat PNG', felt: 'Download felt PNG', aged: 'Download aged PNG', pixel: 'Download 8-bit PNG', chart: 'Download chart' };
+  const EX_LABEL = { svg: 'Download SVG', png: 'Download flat PNG', felt: 'Download felt PNG', aged: 'Download aged PNG', pixel: 'Download 8-bit PNG', chart: 'Download chart', printpdf: 'Download print PDF', tiled: 'Download home-print PDF', cut: 'Download cut files' };
   function syncExportUi() {
     const fmt = $('#exFormat').value;
     document.querySelectorAll('.px-only').forEach((el) => { el.style.display = fmt === 'pixel' || st.view === 'pixel' ? '' : 'none'; });
     document.querySelectorAll('.chart-only').forEach((el) => { el.style.display = fmt === 'chart' ? '' : 'none'; });
-    $('#exWidth').disabled = fmt === 'svg' || fmt === 'chart';
+    const real = ['printpdf', 'tiled', 'cut'].includes(fmt);
+    document.querySelectorAll('.real-only').forEach((el) => { el.style.display = real ? '' : 'none'; });
+    document.querySelectorAll('.tile-only').forEach((el) => { el.style.display = fmt === 'tiled' ? '' : 'none'; });
+    $('#exWidth').closest('label').style.display = real || fmt === 'chart' || fmt === 'svg' ? 'none' : '';
+    $('#exBg').closest('label').style.display = real || fmt === 'chart' ? 'none' : '';
+    if (real) {   // size list shows the finished size for this design's proportions
+      const sel = $('#exSize'), cur = sel.value || (fmt === 'cut' ? '9' : '12');
+      sel.innerHTML = PM.print.SIZES.map(([v, l]) => `<option value="${v}"${v === cur ? ' selected' : ''}>${l}: ${PM.print.sizeLabel(st.d, +v)}</option>`).join('');
+    }
     $('#exBtn').textContent = EX_LABEL[fmt] || 'Download';
   }
   // The export follows the preview: viewing Felt exports felt, Aged exports aged, 8-bit exports pixel art.

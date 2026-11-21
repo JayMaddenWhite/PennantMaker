@@ -59,6 +59,11 @@
               <option value="aged">Aged vintage (PNG)</option>
               <option value="pixel">8-bit pixel art (PNG)</option>
               <option value="chart">Bead / cross-stitch chart (PNG)</option>
+              <optgroup label="Make a real pennant">
+                <option value="printpdf">Print-ready PDF (true size, bleed, cut line)</option>
+                <option value="tiled">Home print: tiled PDF to tape together</option>
+                <option value="cut">Cricut / Silhouette felt cut files (ZIP)</option>
+              </optgroup>
             </select>
           </label>
           <label>Background
@@ -79,6 +84,8 @@
           <label class="px-only">Pixels across
             <select id="exPixels"><option>64</option><option>96</option><option selected>128</option><option>160</option><option>192</option><option>256</option></select>
           </label>
+          <label class="real-only">Pennant size <select id="exSize"></select></label>
+          <label class="tile-only">Paper <select id="exPaper"><option value="letter">Letter (US)</option><option value="a4">A4</option></select></label>
           <label class="chart-only">Chart for
             <select id="exChart"><option value="beads">Fuse beads (Perler / Hama)</option><option value="stitch">Cross-stitch</option></select>
           </label>
@@ -99,6 +106,7 @@
   <script src="js/fonts.js"></script>
   <script src="js/sources.js"></script>
   <script src="js/render.js"></script>
+  <script src="js/print.js"></script>
   <script src="js/zip.js"></script>
   <script src="js/auto.js"></script>
   <script src="js/bulk.js"></script>
