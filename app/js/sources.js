@@ -185,6 +185,125 @@ window.PM = window.PM || {};
     eras.slice().sort((a, b) => Math.min(Math.abs(a.from - year), Math.abs(a.to - year)) - Math.min(Math.abs(b.from - year), Math.abs(b.to - year)))[0] || null;
   S.LEAGUE_STAMPS = { NFL: 'https://a.espncdn.com/i/teamlogos/leagues/500/nfl.png', MLB: 'https://a.espncdn.com/i/teamlogos/leagues/500/mlb.png', NBA: 'https://a.espncdn.com/i/teamlogos/leagues/500/nba.png', NHL: 'https://a.espncdn.com/i/teamlogos/leagues/500/nhl.png' };
 
+  // ---------- Wikipedia: minor-league, defunct, arena, junior and lower-level teams ----------
+  // English Wikipedia has a page (with logo, colors, league and years) for nearly every pro and minor-league
+  // team that ever played: MiLB, ECHL/IHL/CHL hockey, CBA/ABA basketball, Arena/af2 football, USL soccer...
+  const WP = 'https://en.wikipedia.org/w/api.php?format=json&';
+  const TEAMISH = /\b(team|club|franchise|squad)\b|minor[- ]league (baseball|hockey|basketball|football|soccer)/i;
+  const NOT_TEAM = /\bseason\b|player|coach|manager|executive|owner|broadcaster|announcer|stadium|ballpark|venue|ice rink|place in|born|\bdraft\b|\bgames?\b|series|award|film|song|album|novel|\bleague\s*$|\bleague (in|of|for|based|that|which)\b|\bconference\b/i;
+  S.sportOf = (s) => {
+    s = s || '';
+    if (/hockey/i.test(s)) return 'hockey';
+    if (/basketball/i.test(s)) return 'basketball';
+    if (/association football|soccer|football club|\bF\.?C\.?\b/i.test(s)) return 'soccer';
+    if (/football|gridiron/i.test(s)) return 'football';
+    if (/baseball|softball/i.test(s)) return 'baseball';
+    if (/lacrosse/i.test(s)) return 'lacrosse';
+    return null;
+  };
+  // Called straight from the browser (Wikipedia allows it), so each visitor uses their own allowance
+  // instead of every visitor sharing the server's; falls back to the proxy.
+  const wj = async (url) => {
+    try {
+      const r = await fetch(url + '&origin=*', { headers: { 'Api-User-Agent': 'PennantMaker/1.0 (https://pennantmaker.com)' } });
+      if (r.ok) return r.json();
+      if (r.status === 429) throw new Error('Wikipedia is busy, try again in a minute');
+    } catch (e) { if (/busy/.test(e.message)) throw e; }
+    return S.json(url);
+  };
+  const wikiFileUrls = async (files, width = 600) => {
+    const out = {};
+    for (let i = 0; i < files.length; i += 40) {
+      const batch = files.slice(i, i + 40);
+      const r = await wj(WP + `action=query&prop=imageinfo&iiprop=url&iiurlwidth=${width}&titles=` + encodeURIComponent(batch.map((f) => 'File:' + f).join('|')));
+      const norm = {}; (r.query?.normalized || []).forEach((n) => { norm[n.to] = n.from; });
+      for (const p of Object.values(r.query?.pages || {})) {
+        const ii = p.imageinfo?.[0]; if (!ii) continue;
+        const url = (ii.thumburl || ii.url).replace(/\?.*$/, '');
+        out[normFile(p.title)] = url; if (norm[p.title]) out[normFile(norm[p.title])] = url;
+      }
+    }
+    return out;
+  };
+  const cleanWiki = (v) => (v || '').replace(/<br\s*\/?>/gi, ', ').replace(/<[^>]+>/g, '').replace(/\{\{[^{}]*\}\}/g, '')
+    .replace(/\[\[(?:[^|\]]*\|)?([^\]]*)\]\]/g, '$1').replace(/'''?/g, '').replace(/\s+/g, ' ').replace(/^[\s,]+|[\s,]+$/g, '');
+  S.wikiTeams = async (q, limit = 12) => {
+    const j = await wj(WP + `action=query&generator=search&gsrlimit=${limit}&gsrsearch=${encodeURIComponent(q)}&prop=pageprops|description&ppprop=page_image`);
+    const pages = Object.values(j.query?.pages || {}).sort((a, b) => a.index - b.index)
+      .filter((p) => p.description && TEAMISH.test(p.description) && !NOT_TEAM.test(p.description));
+    const urls = await wikiFileUrls(pages.map((p) => p.pageprops?.page_image).filter(Boolean)).catch(() => ({}));
+    return pages.map((p) => {
+      const name = p.title.replace(/\s*\([^)]*\)\s*$/, ''), words = name.split(' ');
+      const logo = p.pageprops?.page_image ? urls[normFile(p.pageprops.page_image)] || null : null;
+      return { source: 'Wikipedia', name, wikiTitle: p.title, leagueLabel: p.description.replace(/^./, (c) => c.toUpperCase()),
+        sport: S.sportOf(p.description + ' ' + p.title), location: words.length > 1 ? words.slice(0, -1).join(' ') : '', nickname: words[words.length - 1],
+        logo, logos: logo ? [{ url: logo, tag: 'logo' }] : [] };
+    });
+  };
+  // Color names used in infoboxes that CSS doesn't know.
+  const SPORT_COLORS = { 'burnt orange': '#cc5500', 'old gold': '#cfb53b', 'vegas gold': '#c5b358', 'athletic gold': '#ffb81c', 'kelly green': '#4cbb17',
+    'hunter green': '#355e3b', 'forest green': '#228b22', 'cardinal': '#c41e3a', 'scarlet': '#ff2400', 'columbia blue': '#9bcbeb', 'carolina blue': '#7bafd4',
+    'navy blue': '#000080', 'royal blue': '#4169e1', 'sky blue': '#87ceeb', 'midnight blue': '#191970', 'maroon': '#800000', 'burgundy': '#800020',
+    'garnet': '#733635', 'cream': '#fffdd0', 'copper': '#b87333', 'bronze': '#cd7f32', 'teal': '#008080', 'aqua': '#00ffff', 'kelly': '#4cbb17' };
+  const colorWord = (w) => {
+    w = w.toLowerCase().replace(/[^a-z ]/g, '').trim();
+    if (!w) return null;
+    if (SPORT_COLORS[w]) return SPORT_COLORS[w];
+    const ctx = (colorWord.ctx ||= document.createElement('canvas').getContext('2d'));
+    ctx.fillStyle = '#010203'; ctx.fillStyle = w.replace(/\s+/g, '');
+    return ctx.fillStyle !== '#010203' ? ctx.fillStyle : null;
+  };
+  S.wikiColors = (field) => {
+    const out = [];
+    const add = (c) => { c = c && (PM.colors.norm(c) || colorWord(c)); if (c && !out.includes(c)) out.push(c); };
+    for (const m of field.matchAll(/\{\{\s*colou?r\s*box\s*\|\s*([^|}]+)/gi)) add(m[1].trim());
+    if (!out.length) cleanWiki(field).split(/,|\band\b|\/|&/i).forEach((w) => add(w));
+    // white / near-white last: they suit the lettering better than the felt
+    return out.filter((c) => PM.colors.lum(c) < 0.85).concat(out.filter((c) => PM.colors.lum(c) >= 0.85));
+  };
+  // Full details for a Wikipedia result: infobox logo, colors, league(s), years.
+  S.wikiDetails = async (team) => {
+    if (team.detailed) return team;
+    const t = Object.assign({}, team, { detailed: true });
+    try {
+      const j = await wj(WP + 'action=parse&prop=wikitext&section=0&redirects=1&page=' + encodeURIComponent(team.wikiTitle));
+      const w = j.parse?.wikitext?.['*'] || '';
+      const field = (k) => { const m = w.match(new RegExp('^\\s*\\|\\s*(?:' + k + ')\\s*=\\s*(.*)$', 'im')); return m ? m[1].trim() : ''; };
+      const cols = S.wikiColors(field('colou?rs|team_colou?rs'));
+      if (cols[0]) t.primary = cols[0]; if (cols[1]) t.secondary = cols[1]; if (cols[2]) t.tertiary = cols[2];
+      const logoFile = field('logo|image').replace(/^(File|Image):/i, '').replace(/\|.*$/, '').replace(/\[\[|\]\]/g, '').trim();
+      if (/\.(svg|png|gif|jpe?g|webp)$/i.test(logoFile)) {
+        const u = (await wikiFileUrls([logoFile]).catch(() => ({})))[normFile(logoFile)];
+        if (u) { t.logo = u; t.logos = [{ url: u, tag: 'logo' }, ...(t.logos || []).filter((l) => l.url !== u)]; }
+      }
+      // leagues: keep the linked page titles so the league's own logo can be found for the stamp
+      const lg = field('league|leagues');
+      t.leagues = [...lg.matchAll(/\[\[([^|\]]+)(?:\|([^\]]+))?\]\]/g)].map((m) => ({ page: m[1].trim(), label: (m[2] || m[1]).trim() }))
+        .filter((x) => !/^\d{4}|season/i.test(x.page));
+      if (t.leagues.length) t.leagueLabel = t.leagues[t.leagues.length - 1].page;
+      const founded = cleanWiki(field('founded|established')).match(/\d{4}/)?.[0], folded = cleanWiki(field('folded|dissolved|defunct')).match(/\d{4}/)?.[0];
+      if (founded || folded) t.years = `${founded || '?'}–${folded || 'now'}`;
+      const nm = cleanWiki(field('name|team_name'));
+      if (nm && nm.split(' ').length > 1 && !/\d/.test(nm)) { const ws = nm.split(' '); t.name = nm; t.location = ws.slice(0, -1).join(' '); t.nickname = ws[ws.length - 1]; }
+      // split "Hartford Wolf Pack" at the city from the infobox, not just before the last word
+      const places = cleanWiki(field('city|location|arena|ballpark|stadium')).split(/,| in /).map((x) => x.trim()).filter(Boolean);
+      const city = [...places, ...cleanWiki(field('city|location')).split(/\s*,\s*/)].find((c) => c && t.name.toLowerCase().startsWith(c.toLowerCase() + ' '));
+      if (city) { t.location = t.name.slice(0, city.length); t.nickname = t.name.slice(city.length + 1); }
+      t.sport = t.sport || S.sportOf(field('sport') + ' ' + t.leagueLabel);
+    } catch (e) { console.warn('wikiDetails', e); }
+    return t;
+  };
+  // Logo of a Wikipedia page (e.g. a league) via its lead image.
+  S.wikiPageLogo = async (title) => {
+    const j = await wj(WP + 'action=query&redirects=1&prop=pageprops&ppprop=page_image&titles=' + encodeURIComponent(title));
+    const f = Object.values(j.query?.pages || {})[0]?.pageprops?.page_image;
+    return f ? (await wikiFileUrls([f]))[normFile(f)] || null : null;
+  };
+
+  // Link-outs for teams no API covers well.
+  S.funWhileItLastedUrl = (q) => 'https://funwhileitlasted.net/?s=' + encodeURIComponent((q || '').trim());
+  S.sportsLogosUrl = (q) => 'https://www.google.com/search?q=' + encodeURIComponent('site:sportslogos.net ' + (q || '').trim());
+
   // ---------- High schools: MaxPreps (national directory of US high school teams + mascot logos) ----------
   // No public API, so we link out: the user finds the school, copies the logo's image address and pastes it into "Link".
   S.maxprepsUrl = (q) => 'https://www.maxpreps.com/search/?q=' + encodeURIComponent((q || '').trim());
@@ -204,7 +323,11 @@ window.PM = window.PM || {};
         if (hay.includes(q)) results.push(t);
       });
     });
+    const wiki = S.wikiTeams(q).catch((e) => { console.warn('Wikipedia', e); return []; });
     try { results.push(...await S.tsdbTeams(q)); } catch (e) { console.warn('TSDB', e); }
+    // Wikipedia: minor-league, defunct, arena and lower-level teams the big APIs don't carry
+    // (kept next to a TheSportsDB match of the same name: Wikipedia usually has the better logo + colors for minor-league clubs)
+    { const have = new Set(results.filter((r) => r.source === 'ESPN').map((r) => r.name.toLowerCase())); for (const t of await wiki) if (!have.has(t.name.toLowerCase())) { have.add(t.name.toLowerCase()); results.push(t); } }
     // Vintage mode: also find teams by logo history, which covers defunct clubs (Whalers, Nordiques...)
     if (opts.vintage) {
       try {
@@ -255,6 +378,13 @@ window.PM = window.PM || {};
         const ls = await S.searchLeagues(L.label).catch(() => []);
         const b = ls[0] && await S.tsdbLeagueBadge(ls[0].idLeague);
         if (b) out.push({ url: b, label: L.label });
+      }
+    } else if (team.source === 'Wikipedia') {
+      // the team's (most recent) league, logo from that league's own Wikipedia page
+      const MAJOR = { 'National Football League': 'NFL', 'Major League Baseball': 'MLB', 'National Basketball Association': 'NBA', 'National Hockey League': 'NHL' };
+      for (const L of (team.leagues || []).slice().reverse()) {
+        const url = MAJOR[L.page] ? S.LEAGUE_STAMPS[MAJOR[L.page]] : await S.wikiPageLogo(L.page).catch(() => null);
+        if (url) { out.push({ url, label: L.label }); break; }
       }
     } else if (S.LEAGUE_STAMPS[team.leagueGuess] && (team.source === 'Logopedia' || /defunct/i.test(team.leagueLabel || '') || !team.tsdbLeagueId)) {
       out.push({ url: S.LEAGUE_STAMPS[team.leagueGuess], label: team.leagueGuess });

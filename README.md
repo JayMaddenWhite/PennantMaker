@@ -50,6 +50,12 @@ Nothing is bundled. Logos are fetched on demand, held in memory, and only stored
    Guided mode (or an `era` column in bulk) to get the logo a team used that season, colors taken from that
    logo, and optionally the team name from that year (1980 Kings → Kansas City Kings). Vintage search also
    finds defunct teams (Whalers, Nordiques, North Stars). The logo **Find** button shows the full history.
+6. Wikipedia: minor-league, defunct, arena, indoor and lower-level teams in every sport (MiLB, AHL/ECHL/IHL,
+   CBA, Arena Football/af2, USL and more). Every search includes it; picking a result reads the team's infobox for
+   its logo, colors, league, years and city, and the league's own logo becomes the stamp. Minor-league hockey,
+   basketball and football teams get the matching background.
+7. Link-outs for anything still missing: Fun While It Lasted (funwhileitlasted.net, a defunct-teams database)
+   and SportsLogos.net. Drag the logo onto a slot or paste its image address under **Link**.
 
 Logos are fine for mockups and personal use. Selling pennants that carry them needs a license.
 

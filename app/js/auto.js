@@ -6,6 +6,7 @@ window.PM = window.PM || {};
   // team: {name, location, nickname, primary, secondary, tertiary, logo, ...}
   // opts: {style, order, stamps: true, keepLogo}
   A.fromTeam = async (team, base, opts = {}) => {
+    if (team.source === 'Wikipedia' && !team.detailed) team = await PM.sources.wikiDetails(team);
     const d = base ? JSON.parse(JSON.stringify(base)) : PM.defaultDesign();
     d.name = team.name || d.name;
     d.line1.text = team.location ?? d.line1.text;
@@ -82,6 +83,10 @@ window.PM = window.PM || {};
     if (L && L.sport === 'basketball') return 'hoops';
     if (L && L.sport === 'hockey') return 'hockey';
     if (L && L.sport === 'football') return 'gridiron';
+    const sp = team && (team.sport || PM.sources.sportOf(team.leagueLabel));
+    if (sp === 'hockey') return 'hockey';
+    if (sp === 'basketball') return 'hoops';
+    if (sp === 'football') return 'gridiron';
     if (team && /hockey|nhl/i.test(team.leagueLabel || '')) return 'hockey';
     if (team && /basketball|nba|wnba/i.test(team.leagueLabel || '')) return 'hoops';
     return 'classic';

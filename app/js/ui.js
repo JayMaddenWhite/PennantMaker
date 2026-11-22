@@ -392,6 +392,8 @@
     finder.append(h('div', { class: 'search' }, fIn, h('button', { onclick: runFind }, 'Search')), grid);
     if (kind === 'team') finder.append(h('p', { class: 'fine', style: 'margin:0' },
       'High school? ', h('a', { href: '#', onclick: (e) => { e.preventDefault(); PM.sources.openExternal(PM.sources.maxprepsUrl(fIn.value)); } }, 'Search MaxPreps high school logos ↗'),
+      ' · Minor league or defunct? ', h('a', { href: '#', onclick: (e) => { e.preventDefault(); PM.sources.openExternal(PM.sources.funWhileItLastedUrl(fIn.value)); } }, 'Fun While It Lasted ↗'),
+      ' · ', h('a', { href: '#', onclick: (e) => { e.preventDefault(); PM.sources.openExternal(PM.sources.sportsLogosUrl(fIn.value)); } }, 'SportsLogos.net ↗'),
       ' then right-click the logo, choose Copy image address, and paste it under Link.'));
     binders.push(paint);
     return h('div', {},
@@ -616,7 +618,7 @@
 
   // ---------- AUTO ----------
   function teamSearch(onPick) {
-    const input = h('input', { type: 'search', placeholder: 'Team, school or club (e.g. Seahawks, Miss State, Arsenal)' });
+    const input = h('input', { type: 'search', placeholder: 'Any team: pro, college, minor league or defunct (e.g. Seahawks, Albany Firebirds)' });
     const results = h('div', { class: 'results' });
     const chips = h('div', { class: 'chips' }, PM.sources.ESPN.map((l) => {
       const c = h('input', { type: 'checkbox', checked: st.leagues.includes(l.id) });
@@ -628,12 +630,12 @@
       if (!st.results.length) return;
       st.results.forEach((t) => results.append(h('button', { class: 'result', onclick: () => onPick(t) },
         t.logo ? h('img', { src: PM.sources.proxied(t.logo), alt: '' }) : h('div', { style: 'width:36px;height:36px;border-radius:6px;background:var(--chip);display:grid;place-items:center;font-size:10px;color:var(--muted)' }, 'logo'),
-        h('div', { class: 'meta' }, h('b', {}, t.name), h('small', {}, `${t.leagueLabel || ''} · ${t.source}`)),
+        h('div', { class: 'meta' }, h('b', {}, t.name), h('small', {}, `${t.leagueLabel || ''}${t.years ? ' · ' + t.years : ''} · ${t.source}`)),
         h('div', { class: 'dots' }, [t.primary, t.secondary, t.tertiary].filter(Boolean).map((c) => h('i', { style: `background:${PM.colors.norm(c)}` }))))));
     };
     const go = async () => {
       const q = input.value.trim(); if (!q) return;
-      results.innerHTML = '<small>Searching ESPN + TheSportsDB…</small>';
+      results.innerHTML = '<small>Searching ESPN, TheSportsDB and Wikipedia…</small>';
       try { st.results = await PM.sources.search(q, st.leagues, { vintage: st.era.on }); }
       catch (e) { st.results = []; results.innerHTML = '<small>Lookup failed: ' + PM.esc(e.message) + '</small>'; return; }
       if (!st.results.length) { results.innerHTML = '<small>No matches. Try fewer words, tick more leagues, or use your own colors below.</small>'; return; }
@@ -644,7 +646,11 @@
     const hs = h('p', { class: 'fine', style: 'margin:6px 0 0' }, 'High school team? ',
       h('a', { href: '#', onclick: (e) => { e.preventDefault(); PM.sources.openExternal(PM.sources.maxprepsUrl(input.value)); } }, 'Find its logo on MaxPreps ↗'),
       ', copy the logo image address, then use "Or use your own team" below or Primary mark → Link.');
-    return h('div', {}, h('div', { class: 'search' }, input, h('button', { class: 'primary', onclick: go }, 'Search')), chips, hs, results);
+    const minors = h('p', { class: 'fine', style: 'margin:4px 0 0' }, 'Minor-league or defunct team not showing? Look it up on ',
+      h('a', { href: '#', onclick: (e) => { e.preventDefault(); PM.sources.openExternal(PM.sources.funWhileItLastedUrl(input.value)); } }, 'Fun While It Lasted ↗'), ' or ',
+      h('a', { href: '#', onclick: (e) => { e.preventDefault(); PM.sources.openExternal(PM.sources.sportsLogosUrl(input.value)); } }, 'SportsLogos.net ↗'),
+      ', then drag the logo onto Primary mark (or copy its image address into Link).');
+    return h('div', {}, h('div', { class: 'search' }, input, h('button', { class: 'primary', onclick: go }, 'Search')), chips, hs, minors, results);
   }
 
   st.autoTpl = st.autoTpl || 'match';
@@ -654,6 +660,7 @@
       t = await PM.auto.withEra(t, st.era.year, st.era.useName);
       if (t.eraMissing) toast('No logo history found, using the current logo', 3000);
     }
+    if (t.source === 'Wikipedia') t = await PM.sources.wikiDetails(t); // logo, colors, league, years from the team's page
     if (!base) { base = PM.auto.baseFor(t, st.autoTpl); if (st.d.template === base.template) base.stripes.order = st.d.stripes.order; }
     toast('Building ' + t.name + '…', 6000);
     const d = await PM.auto.fromTeam(t, base, {});

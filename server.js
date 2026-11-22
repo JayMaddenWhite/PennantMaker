@@ -1,5 +1,5 @@
 // Pennant Maker server: serves the app and proxies logo/data lookups so images from
-// ESPN / TheSportsDB / Wikimedia / Logopedia / pasted links can be exported (no CORS issues).
+// ESPN / TheSportsDB / Wikipedia / Wikimedia / Logopedia / pasted links can be exported (no CORS issues).
 // Nothing fetched through the proxy is written to disk.
 //
 // Safe to run on a public domain:
@@ -24,7 +24,7 @@ const TYPES = {
 // Lookup services the app reads data from (any content type allowed).
 const DATA_HOSTS = new Set([
   'site.api.espn.com', 'sports.core.api.espn.com', 'www.thesportsdb.com',
-  'commons.wikimedia.org', 'logos.fandom.com',
+  'commons.wikimedia.org', 'en.wikipedia.org', 'logos.fandom.com',
 ]);
 const MAX_BYTES = 10 * 1024 * 1024;
 const MAX_REDIRECTS = 4;
@@ -71,7 +71,7 @@ async function proxy(req, res, target) {
     let r;
     for (let hop = 0; ; hop++) {
       await assertPublic(u);
-      r = await fetch(u, { headers: { 'User-Agent': 'PennantMaker/1.0' }, redirect: 'manual', signal: AbortSignal.timeout(15000) });
+      r = await fetch(u, { headers: { 'User-Agent': 'PennantMaker/1.0 (+https://pennantmaker.com)' }, redirect: 'manual', signal: AbortSignal.timeout(15000) });
       if (r.status >= 300 && r.status < 400 && r.headers.get('location')) {
         if (hop >= MAX_REDIRECTS) return fail(508, 'too many redirects');
         u = new URL(r.headers.get('location'), u); continue;
