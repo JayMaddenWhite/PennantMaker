@@ -10,10 +10,13 @@ window.PM = window.PM || {};
   // Pennant sizes: height at the spine (inches). Length follows the design's proportions.
   P.SIZES = [['4', 'Mini 4 in tall'], ['6', '6 in tall'], ['9', '9 in tall'], ['12', '12 in tall (classic)'], ['18', '18 in tall (large)']];
   P.BLEED = 0.125;
+  P.BANNER_SIZES = [['12', '12 in tall (desk)'], ['18', '18 in tall'], ['24', '24 in tall (2 ft)'], ['36', '36 in tall (3 ft)'], ['48', '48 in tall (4 ft)'], ['72', '72 in tall (6 ft rafter)']];
+  P.sizesFor = (d) => (PM.isBanner(d) ? P.BANNER_SIZES : P.SIZES);
 
   // Geometry of the printed piece in design units: spine left edge to tip, top to bottom (ties are sewn on, not printed).
   P.piece = (d) => {
     const t = PM.TEMPLATES[d.template] || PM.TEMPLATES.classic;
+    if (t.banner) { const body = PM.geom(d).body; return { t, x0: t.L, x1: t.R, y0: t.T, y1: t.B, w: t.R - t.L, h: t.B - t.T, outline: body }; }
     const tipX = d.field.tipX || t.tipX, tipY = (t.top + t.bottom) / 2;
     const x0 = d.spine.show ? t.spineX : t.bodyX - 2, x1 = tipX, y0 = t.top, y1 = t.bottom;
     const outline = d.spine.show ? [[x0, y0], [t.bodyX, y0], [tipX, tipY], [t.bodyX, y1], [x0, y1]] : [[x0, y0], [tipX, tipY], [x0, y1]];
@@ -31,10 +34,11 @@ window.PM = window.PM || {};
     await PM.ensureFonts(d);
     const fontCss = await PM.embedFonts(d);
     const vb = `${(g.x0 - bu).toFixed(3)} ${(g.y0 - bu).toFixed(3)} ${(g.w + 2 * bu).toFixed(3)} ${(g.h + 2 * bu).toFixed(3)}`;
-    const t = g.t, body = [[t.bodyX - 2, t.top], [g.x1, (t.top + t.bottom) / 2], [t.bodyX - 2, t.bottom]].map((p) => p.join(',')).join(' ');
+    const t = g.t, body = (t.banner ? g.outline : [[t.bodyX - 2, t.top], [g.x1, (t.top + t.bottom) / 2], [t.bodyX - 2, t.bottom]]).map((p) => p.join(',')).join(' ');
     const under = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb}" width="${W}" height="${H}">` +
       `<polygon points="${body}" fill="${d.field.color}" stroke="${d.field.color}" stroke-width="${2 * bu}" stroke-linejoin="round"/>` +
-      (d.spine.show ? `<rect x="${g.x0 - bu}" y="${g.y0 - bu}" width="${d.spine.outerW + bu}" height="${g.h + 2 * bu}" fill="${d.spine.outer}"/>` : '') + `</svg>`;
+      (d.spine.show ? (t.banner ? `<rect x="${g.x0 - bu}" y="${g.y0 - bu}" width="${g.w + 2 * bu}" height="${d.spine.outerW + bu}" fill="${d.spine.outer}"/>`
+        : `<rect x="${g.x0 - bu}" y="${g.y0 - bu}" width="${d.spine.outerW + bu}" height="${g.h + 2 * bu}" fill="${d.spine.outer}"/>`) : '') + `</svg>`;
     const art = PM.renderSVG(d, { parts: ['field', 'stripes', 'spine', 'stitch', 'applique'], fontCss }).replace(/viewBox="[^"]*" width="[^"]*" height="[^"]*"/, `viewBox="${vb}" width="${W}" height="${H}"`);
     const c = canvas(W, H), x = c.getContext('2d');
     x.fillStyle = '#ffffff'; x.fillRect(0, 0, W, H);
@@ -92,7 +96,7 @@ window.PM = window.PM || {};
       `q ${f2((z.W + 2 * b) * 72)} 0 0 ${f2((z.H + 2 * b) * 72)} ${f2(m * 72)} ${f2(m * 72)} cm /Im1 Do Q`,
       `q /CS1 CS 1 SCN 0.5 w 1 j ${cut} S Q`,                                  // cut line (spot colour)
       `q 0 0 0 RG 0.3 w ${mark(tx0, ty0, -1, 0)} ${mark(tx0, ty0, 0, -1)} ${mark(tx1, ty0, 1, 0)} ${mark(tx1, ty0, 0, -1)} ${mark(tx0, ty1, -1, 0)} ${mark(tx0, ty1, 0, 1)} ${mark(tx1, ty1, 1, 0)} ${mark(tx1, ty1, 0, 1)} Q`,
-      `BT /F1 7 Tf 0 0 0 rg ${f2(m * 72)} ${f2(m * 72 * 0.35)} Td ${pdfText(`${title(d)} - ${z.H} x ${z.W.toFixed(2)} in finished - ${dpi} dpi - bleed ${b} in - cut line: CutContour spot colour - ties not printed (sew on)`)} Tj ET`,
+      `BT /F1 7 Tf 0 0 0 rg ${f2(m * 72)} ${f2(m * 72 * 0.35)} Td ${pdfText(`${title(d)} - ${z.H} x ${z.W.toFixed(2)} in finished - ${dpi} dpi - bleed ${b} in - cut line: CutContour spot colour - ${PM.isBanner(d) ? 'cord and rod not printed (fold the top sleeve over a dowel)' : 'ties not printed (sew on)'}`)} Tj ET`,
     ].join('\n');
     const cont = doc.stream('', enc.encode(content));
     const pageId = doc.nextId();          // the page, then its /Pages parent right after it
@@ -283,10 +287,10 @@ window.PM = window.PM || {};
       files.push({ name: `${n}-${i === 0 ? 'base-felt' : 'layer'}-${l.color.slice(1)}.svg`, data: svgHead + `<path d="${loopsToPath(l.loops, sc)}" fill="${l.color}" fill-rule="evenodd"/></svg>` });
       const [bw, bh] = bbox(l.loops);
       const big = Math.min(bw, bh) > 11.5 || Math.max(bw, bh) > 23.5;
-      notes.push(`${n}  ${i === 0 ? 'BASE felt (whole pennant shape)' : 'layer piece(s)'}  colour ${l.color.toUpperCase()}  ${l.loops.length} path(s)  size ${bw.toFixed(2)} x ${bh.toFixed(2)} in${big ? '  ** larger than a 12x24 in mat: use a longer mat or split it **' : ''}`);
+      notes.push(`${n}  ${i === 0 ? `BASE felt (whole ${PM.isBanner(d) ? 'banner' : 'pennant'} shape)` : 'layer piece(s)'}  colour ${l.color.toUpperCase()}  ${l.loops.length} path(s)  size ${bw.toFixed(2)} x ${bh.toFixed(2)} in${big ? '  ** larger than a 12x24 in mat: use a longer mat or split it **' : ''}`);
     });
     files.push({ name: 'README.txt', data: [
-      `${title(d)} - felt cutting files`, `Finished size: ${z.H} x ${z.W.toFixed(2)} in (height at spine x length). Ties are not included: sew ribbon or felt strips to the spine.`, '',
+      `${title(d)} - felt cutting files`, PM.isBanner(d) ? `Finished size: ${z.H} x ${z.W.toFixed(2)} in (height x width). Cord and rod are not included: fold the top sleeve over a dowel and add a cord.` : `Finished size: ${z.H} x ${z.W.toFixed(2)} in (height at spine x length). Ties are not included: sew ribbon or felt strips to the spine.`, '',
       'Layers, bottom to top:', ...notes, '',
       'How to use (Cricut Design Space / Silhouette Studio):',
       ' 1. Upload each SVG (or 00-all-layers.svg, which keeps every colour as its own layer).',

@@ -37,8 +37,10 @@ window.PM = window.PM || {};
       tertiary: fromLogo[2] || team.tertiary || logoColors[2],
       field: d.field.color || PM.DEFAULT_FIELD,
     }, logoColors);
+    if (PM.isBanner(d)) A.bannerText(d, team, opts.banner || {});
     PM.colors.applyPalette(d, pal, opts.style || d.wordStyle);
-    if (opts.wordmark !== false && !PM.isLocked(d, 'line2')) await A.useWordmark(d, team);
+    const wmKey = PM.isBanner(d) ? 'extra' : 'line2';
+    if (opts.wordmark !== false && !PM.isLocked(d, wmKey)) await A.useWordmark(d, team, wmKey);
     A.layoutText(d);
     await A.fit(d);
     return d;
@@ -59,8 +61,8 @@ window.PM = window.PM || {};
     img.src = data;
   });
   // The team's real wordmark goes in the big line when one is found and reads on the felt; otherwise the font.
-  A.useWordmark = async (d, team) => {
-    const l2 = d.line2;
+  A.useWordmark = async (d, team, key = 'line2') => {
+    const l2 = d[key], solo = key === 'line2';
     const wasAuto = l2.autoImg;
     let found = null;
     for (const c of await PM.sources.wordmarks(team, team.eraLabel ? parseInt(team.eraLabel, 10) : 0).catch(() => [])) {
@@ -78,12 +80,14 @@ window.PM = window.PM || {};
     }
     if (found) {
       Object.assign(l2, { show: true, useImg: true, img: found.data, imgAR: found.ar, imgScale: 1.15, autoImg: true, imgFrom: found.from });
+      // banners: the wordmark sits in the gap between the logo and the title lines
+      if (!solo && PM.isBanner(d) && !PM.isLocked(d, key)) Object.assign(l2, { size: 80, y: 915, imgScale: 1 });
       l2.ko = Object.assign({}, l2.ko, { on: found.ko, shape: 'outline', w: 5, color: d.field.color });
-      d.line1.show = false; // the wordmark already carries the name
+      if (solo) d.line1.show = false; // the wordmark already carries the name
     } else if (wasAuto) {
       Object.assign(l2, { useImg: false, img: null, autoImg: false, imgFrom: null });
       if (l2.ko) l2.ko.on = false;
-      d.line1.show = true;
+      if (solo) d.line1.show = true;
     }
     return !!found;
   };
@@ -125,7 +129,64 @@ window.PM = window.PM || {};
   };
 
   // Shrink / nudge the unlocked logo and wordmark lines so nothing spills over the spine or the pennant's edges.
-  A.fit = (d) => PM.fitToPennant(d, ['mark', 'line1', 'line2', 'extra'].filter((k) => !PM.isLocked(d, k))).catch(() => false);
+  A.fit = (d) => PM.fitToPennant(d, ['mark', 'line1', 'line2', 'extra', 'years'].filter((k) => !PM.isLocked(d, k))).catch(() => false);
+
+  // ---------- Banners ----------
+  // The words above CHAMPIONS, from the team's league.
+  const KICKER = { nfl: 'SUPER BOWL', mlb: 'WORLD SERIES', nba: 'NBA', nhl: 'STANLEY CUP', wnba: 'WNBA', mls: 'MLS CUP',
+    cfb: 'NATIONAL', cbb: 'NATIONAL', cbase: 'NATIONAL', epl: 'PREMIER LEAGUE', efl: 'CHAMPIONSHIP', laliga: 'LA LIGA', bund: 'BUNDESLIGA', seriea: 'SERIE A', ligue1: 'LIGUE 1', ligamx: 'LIGA MX' };
+  A.kickerFor = (team) => {
+    if (!team) return 'LEAGUE';
+    if (KICKER[team.leagueId]) return KICKER[team.leagueId];
+    if (team.college) return 'NATIONAL';
+    const lg = (team.leagueLabel || team.leagueGuess || '').replace(/\s*\(.*\)$/, '').trim();
+    if (/^(NFL|MLB|NBA|NHL)$/.test(lg)) return { NFL: 'SUPER BOWL', MLB: 'WORLD SERIES', NBA: 'NBA', NHL: 'STANLEY CUP' }[lg];
+    return lg && lg.length <= 26 && !/team|club|based|baseball team|hockey team/i.test(lg) ? lg.toUpperCase() : 'LEAGUE';
+  };
+  // Banner lettering: team name on the small line under the logo, then "<kicker>" / "CHAMPIONS", then the years.
+  A.bannerText = (d, team, b = {}) => {
+    d.extra.text = (team && team.name) || d.extra.text || '';
+    d.extra.show = !!d.extra.text; d.extra.useImg = false; d.extra.autoImg = false;
+    d.line1.text = b.kicker != null && b.kicker !== '' ? b.kicker : A.kickerFor(team); d.line1.show = true; d.line1.useImg = false;
+    d.line2.text = b.title || 'CHAMPIONS'; d.line2.show = true; d.line2.useImg = false; d.line2.autoImg = false;
+    if (b.years != null) d.years.text = b.years;
+    d.years.show = true;
+    // remember how the team reads on a pennant ("Boston" / "Red Sox") for switching back
+    if (team && (team.location !== undefined || team.nickname)) {
+      const L = (text) => ({ text, show: true, useImg: false, img: null, autoImg: false, imgFrom: null });
+      d.texts = d.texts || {};
+      d.texts.pennant = { line1: L(team.location || ''), line2: L(team.nickname || team.name || ''), extra: Object.assign(L(''), { show: false }) };
+    }
+  };
+  // Switch a design between pennant and banner, keeping each product's own lettering.
+  const TEXT_KEYS = ['text', 'show', 'useImg', 'img', 'imgAR', 'imgScale', 'autoImg', 'imgFrom'];
+  const grab = (l) => Object.fromEntries(TEXT_KEYS.map((k) => [k, l[k]]));
+  A.toProduct = (d, product, opts = {}) => {
+    const cur = PM.productOf(d);
+    if (cur === product) return d;
+    d.texts = d.texts || {};
+    d.texts[cur] = { line1: grab(d.line1), line2: grab(d.line2), extra: grab(d.extra) };
+    // what the pennant said becomes the banner's team-name line (and back)
+    const pennantName = [d.line1.show !== false && !d.line1.useImg ? d.line1.text : '', !d.line2.useImg ? d.line2.text : ''].filter(Boolean).join(' ');
+    const wordmark = cur === 'pennant' && d.line2.useImg && d.line2.img ? grab(d.line2) : null;
+    const bannerName = cur === 'banner' && d.extra.show ? d.extra.text : '';
+    const shape = d.bnr && d.bnr.shape;
+    d = PM.setTemplate(d, opts.tpl || (product === 'banner' ? 'bannerRafter' : 'classic'));
+    if (shape) d.bnr.shape = shape;
+    const saved = d.texts[product];
+    if (saved) { Object.assign(d.line1, saved.line1); Object.assign(d.line2, saved.line2); Object.assign(d.extra, saved.extra); }
+    else if (product === 'banner') {
+      A.bannerText(d, { name: pennantName || d.name, leagueId: opts.team && opts.team.leagueId, leagueLabel: opts.team && opts.team.leagueLabel, college: opts.team && opts.team.college }, opts.banner || {});
+      if (wordmark) Object.assign(d.extra, wordmark, { show: true });
+      d.extra.show = !!(d.extra.text || d.extra.useImg);
+    } else {
+      const w = (bannerName || d.name || '').split(' ');
+      d.line1.text = w.length > 1 ? w.slice(0, -1).join(' ') : ''; d.line2.text = w[w.length - 1] || '';
+      d.line1.show = true; d.line2.show = true; d.line1.useImg = false; d.line2.useImg = false; d.extra.show = false;
+    }
+    A.layoutText(d);
+    return d;
+  };
 
   // Which background suits a team: basketball → Vintage Hoops, hockey → Vintage Hockey, everything else → Vintage Baseball.
   A.templateFor = (team) => {
@@ -143,6 +204,7 @@ window.PM = window.PM || {};
   };
   // A fresh design on the chosen background ('match' = pick by sport).
   A.baseFor = (team, choice) => PM.setTemplate(PM.defaultDesign(), !choice || choice === 'match' ? A.templateFor(team) : choice);
+  A.bannerBase = (choice, shape) => { const d = PM.setTemplate(PM.defaultDesign(), choice && PM.TEMPLATES[choice] && PM.TEMPLATES[choice].banner ? choice : 'bannerRafter'); if (shape) d.bnr.shape = shape; return d; };
 
   // Rotate through wordmark styles / fonts for "Remix" in auto mode.
   A.remix = (d) => {

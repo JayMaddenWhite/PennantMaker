@@ -167,7 +167,11 @@ window.PM = window.PM || {};
     for (const m of w.matchAll(/^\|\s*([^|=\n]+?\.(?:svg|png|gif|jpe?g|webp))\s*\|\s*(\d{4})\s*[–—-]\s*(\d{4}|present)/gim)) {
       if (!seen.has(normFile(m[1]))) { seen.add(normFile(m[1])); eras.push({ file: m[1].trim(), from: +m[2], to: yr(m[3]), team: title }); }
     }
-    eras.forEach((e) => { if (GENERIC.test(e.team) || /\d/.test(e.team)) e.team = title; });
+    // sections for caps, helmets, uniforms, alternates etc. are not the team's primary logo (or its name)
+    const SIDE = /\b(caps?|helmets?|jerseys?|uniforms?|alternates?|secondary|tertiary|wordmarks?|scripts?|patch(es)?|anniversary|special|throwback|road|home|batting practice|spring training|other logos?)\b/i;
+    eras.forEach((e) => { e.side = SIDE.test(e.team); });
+    if (eras.some((e) => !e.side)) for (let i = eras.length - 1; i >= 0; i--) if (eras[i].side) eras.splice(i, 1);
+    eras.forEach((e) => { if (GENERIC.test(e.team) || /\d/.test(e.team) || e.side || /\blogos?\b/i.test(e.team)) e.team = title; });
     // resolve image URLs (batched)
     for (let i = 0; i < eras.length; i += 40) {
       const batch = eras.slice(i, i + 40);

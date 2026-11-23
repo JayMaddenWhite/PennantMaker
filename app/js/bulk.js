@@ -3,7 +3,7 @@ window.PM = window.PM || {};
 (function (PM) {
   const B = {};
 
-  B.COLUMNS = ['name', 'template', 'era', 'line1', 'line2', 'lookup', 'league', 'primary', 'secondary', 'tertiary', 'field', 'style', 'order', 'logo', 'stamp1', 'stamp2', 'extra', 'ties'];
+  B.COLUMNS = ['name', 'template', 'era', 'line1', 'line2', 'lookup', 'league', 'primary', 'secondary', 'tertiary', 'field', 'style', 'order', 'logo', 'stamp1', 'stamp2', 'extra', 'ties', 'kicker', 'title', 'years', 'shape'];
 
   B.parseCSV = (text) => {
     const rows = []; let row = [], cur = '', q = false;
@@ -53,9 +53,11 @@ window.PM = window.PM || {};
     }
     // Background: baseball / hoops, or blank = match the sport
     const tv = (row.template || '').toLowerCase();
-    const tplKey = /hoop|nba|basket/.test(tv) ? 'hoops' : /hock|nhl/.test(tv) ? 'hockey' : /grid|foot|nfl/.test(tv) ? 'gridiron'
+    const tplKey = /banner|rafter/.test(tv) ? (/two|header/.test(tv) ? 'bannerHeader' : /varsity|stripe/.test(tv) ? 'bannerVarsity' : 'bannerRafter')
+      : /hoop|nba|basket/.test(tv) ? 'hoops' : /hock|nhl/.test(tv) ? 'hockey' : /grid|foot|nfl/.test(tv) ? 'gridiron'
       : /edge|trim/.test(tv) ? 'edge' : /split|two/.test(tv) ? 'split' : /band|college/.test(tv) ? 'bands' : /base|mlb|classic/.test(tv) ? 'classic' : PM.auto.templateFor(team);
     d = PM.setTemplate(d, tplKey);
+    if (PM.isBanner(d) && row.shape) d.bnr.shape = /point/i.test(row.shape) ? 'point' : /rect|straight|flat/i.test(row.shape) ? 'rect' : 'swallow';
     const userLogo = await resolveImg(row.logo, files).catch(() => null);
     const t = Object.assign({ name: row.name, location: '', nickname: row.name }, team || {});
     if (row.line1 !== undefined && row.line1 !== '') t.location = row.line1;
@@ -66,12 +68,13 @@ window.PM = window.PM || {};
     if (row.tertiary) t.tertiary = row.tertiary;
     if (userLogo) { d.mark.src = userLogo; t.logo = null; }
     if (row.field) d.field.color = PM.colors.norm(row.field) || d.field.color;
-    d = await PM.auto.fromTeam(t, d, { style: row.style || undefined, order: (row.order || '').toUpperCase() === 'ABAB' ? 'ABAB' : 'ABBA', stamps: !!team, keepLogo: !!userLogo });
+    d = await PM.auto.fromTeam(t, d, { style: row.style || undefined, order: (row.order || '').toUpperCase() === 'ABAB' ? 'ABAB' : 'ABBA', stamps: !!team, keepLogo: !!userLogo,
+      banner: { kicker: row.kicker || '', title: row.title || 'CHAMPIONS', years: row.years !== undefined ? row.years.replace(/;/g, ',') : undefined } });
     for (const [i, key] of [[0, 'stamp1'], [1, 'stamp2']]) {
       if (/^none$/i.test(row[key] || '')) d.stamps.items[i].show = false;
       else { const img = await resolveImg(row[key], files).catch(() => null); if (img) { d.stamps.items[i].src = img; d.stamps.items[i].show = true; } }
     }
-    if (row.extra) { d.extra.show = true; d.extra.text = row.extra; }
+    if (row.extra && !PM.isBanner(d)) { d.extra.show = true; d.extra.text = row.extra; }
     if (row.ties) { const v = row.ties.toLowerCase(); d.ties.top.show = v === 'both' || v === 'top'; d.ties.bottom.show = v === 'both' || v === 'bottom'; }
     if (!d.mark.src) log('  ⚠ no logo found — upload one or add a URL in the "logo" column');
     return d;
@@ -86,6 +89,7 @@ window.PM = window.PM || {};
     'Phoenix Suns,,,Phoenix,Suns,Phoenix Suns,nba,,,,,,,auto,,,,',
     'New Jersey Devils,hockey,,New Jersey,Devils,New Jersey Devils,nhl,,,,,,,auto,,,,',
     'Hartford Whalers,hockey,1985,Hartford,Whalers,Hartford Whalers,,,,,,,,auto,,,,',
+    'Boston Red Sox,rafter banner,,,,Boston Red Sox,mlb,,,,,,,auto,,,,,WORLD SERIES,CHAMPIONS,1903; 1912; 1915; 1916; 1918; 2004; 2007; 2013; 2018,swallowtail',
   ].join('\n');
 
   PM.bulk = B;

@@ -38,6 +38,21 @@ High schools aren't in the team databases. The team search and the logo **Find**
 
 Flat vector (SVG, fonts embedded), flat PNG, felt mockup PNG (beige wall or transparent), 8-bit PNG.
 
+## Championship banners
+
+The **Pennant | Banner** switch at the top turns the app into a championship banner maker. Banners use the same
+team lookup, colors, logos, wordmarks, fonts, layers, swap buttons and auto-fit as pennants.
+- Shapes: swallowtail, straight bottom or pointed bottom. Backgrounds: Rafter (team-color felt with a two-line trim),
+  Two-Tone (team-color block behind the logo) and Varsity Stripes (stripes down both sides).
+- Lettering: the team name (or its wordmark) under the logo, a top line from the league (SUPER BOWL, WORLD SERIES,
+  STANLEY CUP, NATIONAL...), CHAMPIONS, and a list of championship years that lines itself up in rows and shrinks to
+  stay above the bottom edge. Change any of it in Automatic → Banner lettering or under Manual.
+- A top sleeve with stitching, a hanging cord and a wooden rod. Felt, Aged, 8-bit, print PDF (12 in to 6 ft tall),
+  tiled home print and cut files all work for banners.
+- Bulk: set `template` to `rafter banner`, `two-tone banner` or `varsity banner`, and fill the `kicker`, `title`,
+  `years` (separated by `;`) and `shape` columns.
+- Switching back and forth keeps each product's own lettering.
+
 ## Where logos come from
 
 Nothing is bundled. Logos are fetched on demand, held in memory, and only stored inside design files you save yourself.

@@ -16,6 +16,10 @@
 <body>
   <header class="top">
     <div class="brand"><img class="wordmark" src="icons/wordmark-header.svg" alt="Pennant Maker"></div>
+    <nav class="modes product" id="productSw" aria-label="What to make">
+      <button data-product="pennant">Pennant</button>
+      <button data-product="banner">Banner</button>
+    </nav>
     <nav class="modes" id="modes">
       <button data-mode="auto">Automatic</button>
       <button data-mode="guided">Guided</button>
@@ -84,7 +88,7 @@
           <label class="px-only">Pixels across
             <select id="exPixels"><option>64</option><option>96</option><option selected>128</option><option>160</option><option>192</option><option>256</option></select>
           </label>
-          <label class="real-only">Pennant size <select id="exSize"></select></label>
+          <label class="real-only">Size <select id="exSize"></select></label>
           <label class="tile-only">Paper <select id="exPaper"><option value="letter">Letter (US)</option><option value="a4">A4</option></select></label>
           <label class="chart-only">Chart for
             <select id="exChart"><option value="beads">Fuse beads (Perler / Hama)</option><option value="stitch">Cross-stitch</option></select>

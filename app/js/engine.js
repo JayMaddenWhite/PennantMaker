@@ -301,6 +301,138 @@ window.PM = window.PM || {};
     }),
   };
 
+  // ================= Championship banners =================
+  // Portrait felt banners that hang from a rod by a cord. Same parts as a pennant (sleeve = "spine",
+  // cord + rod = "ties", logo, two title lines, extra = team name), plus a list of championship years.
+  const BGEO = { banner: true, product: 'banner', W: 1200, H: 1900, L: 130, R: 1070, T: 190, B: 1790,
+    // pennant-style names some shared code reads (sizes, print): top / bottom of the felt
+    top: 190, bottom: 1790, spineX: 130, bodyX: 130, tipX: 1070, tieTopY: 0, tieBottomY: 0 };
+  PM.BANNER_SHAPES = [['swallow', 'Swallowtail (notched)'], ['rect', 'Straight bottom'], ['point', 'Pointed bottom']];
+  // Body outline for a shape, inset by m (m = 0: the cut edge).
+  PM.bannerShape = (shape, t, m = 0) => {
+    const L = t.L + m, R = t.R - m, T = t.T + m, B = t.B, cx = (t.L + t.R) / 2, N = 190, P = 230;
+    if (shape === 'rect') return [[L, T], [R, T], [R, B - m], [L, B - m]];
+    if (shape === 'point') return [[L, T], [R, T], [R, B - P - m * 0.45], [cx, B - m * 1.6], [L, B - P - m * 0.45]];
+    return [[L, T], [R, T], [R, B - m * 1.3], [cx, B - N - m * 1.25], [L, B - m * 1.3]];           // swallowtail
+  };
+  // Lowest usable y (inside margin m) at a given x, for fitting the years block.
+  const bannerBottomAt = (shape, t, x, m) => {
+    const cx = (t.L + t.R) / 2, u = Math.min(1, Math.abs(x - cx) / (cx - t.L));
+    if (shape === 'rect') return t.B - m;
+    if (shape === 'point') return t.B - 230 * u - m * 1.6;
+    return t.B - 190 * (1 - u) - m * 1.3;
+  };
+  const bnrDefaults = (extra) => Object.assign({
+    wordStyle: 'classic',
+    field: { margin: 18 },
+    spine: { outerW: 74, innerW: 14, stitchSeam: true },
+    ties: { top: { show: true }, bottom: { show: true }, width: 26 },
+    stamps: { x: 168, y: 328, items: [{ show: true, size: 74 }, { show: true, size: 74 }] },
+    mark: { x: 600, y: 565, size: 500 },
+    extra: { x: 600, y: 900, size: 62, maxWidth: 760 },
+    line1: { x: 600, y: 1010, size: 84, maxWidth: 800 },
+    line2: { x: 600, y: 1180, size: 200, maxWidth: 860 },
+    years: { x: 600, y: 1330, size: 118, maxWidth: 820 },
+    maker: { x: 600, y: 1600 },
+  }, extra);
+  const bnrLayout = { l1y: 1010, l2y: 1180, soloY: 1130, size2: 200 };
+  // Lettering for the years block follows the big line's look.
+  const yearsLike = (d) => {
+    const y = d.years, l = d.line2;
+    y.fill = l.fill; y.o1 = Object.assign({}, l.o1, { w: Math.min(l.o1.w, 4) }); y.o2 = Object.assign({}, l.o2, { w: Math.min(l.o2.w, 4) });
+    y.shadow = Object.assign({}, l.shadow, { on: false }); y.font = 'Oswald'; y.letterSpacing = 2;
+  };
+  const polyPts = (a) => a.map((q) => q.map((v) => +v.toFixed(1)).join(',')).join(' ');
+  Object.assign(PM.TEMPLATES, {
+    bannerRafter: Object.assign({}, BGEO, {
+      name: 'Rafter Banner',
+      // team-colour felt with a two-line trim around the edge, cream lettering (arena rafter banners)
+      pattern(d, g) {
+        const b = d.bnr; if (!b.show) return '';
+        const o1 = PM.bannerShape(b.shape, g.t, b.trimInset), o2 = PM.bannerShape(b.shape, g.t, b.trimInset + b.trimW + b.trimGap);
+        const ring = (pts, c, w) => `<polygon points="${polyPts(pts)}" fill="none" stroke="${c}" stroke-width="${w}" stroke-linejoin="miter"/>`;
+        return `<g data-part="pattern">${ring(o1, b.colorA, b.trimW)}${ring(o2, b.colorB, Math.max(2, b.trimW * 0.45))}</g>`;
+      },
+      defaults: bnrDefaults({}),
+      field: '#1f2a44',
+      layout: bnrLayout,
+      palette(d, p) {
+        const C = PM.colors;
+        const [dark, light] = C.lum(p.primary) <= C.lum(p.secondary || p.primary) ? [p.primary, p.secondary || p.primary] : [p.secondary, p.primary];
+        const cream = '#f7f1e3';
+        d.field.color = dark;
+        d.bnr.colorA = C.contrast(light, dark) > 1.4 ? light : cream; d.bnr.colorB = cream;
+        d.spine.outer = d.bnr.colorA; d.spine.inner = cream; d.spine.stitch = C.lum(d.bnr.colorA) > 0.5 ? '#3a3839' : cream;
+        d.ties.top.color = d.bnr.colorA; d.ties.bottom.color = '#7a5a3a';
+        d.mark.knockout.color = cream; d.mark.ring.color = d.bnr.colorA;
+        for (const o of [d.stamps, d.maker]) if (o.ko) o.ko.color = cream;
+        for (const l of [d.line1, d.line2, d.extra]) {
+          l.fill = cream; l.o1 = { color: dark, w: 0 }; l.o2 = { color: d.bnr.colorA, w: d.bnr.colorA === cream ? 0 : (l === d.line2 ? 4 : 2) }; l.shadow.on = false;
+          if (l.ko) l.ko.color = dark;
+        }
+        yearsLike(d);
+      },
+    }),
+    bannerHeader: Object.assign({}, BGEO, {
+      name: 'Two-Tone Banner',
+      // a team-colour block behind the logo, cream felt below with the title and years
+      pattern(d, g) {
+        const b = d.bnr; if (!b.show) return '';
+        const t = g.t, y = b.headerY;
+        const clip = `<defs><clipPath id="bnrClip"><polygon points="${polyPts(g.body)}"/></clipPath></defs>`;
+        return clip + `<g data-part="pattern" clip-path="url(#bnrClip)"><rect x="${t.L - 5}" y="${t.T - 5}" width="${t.R - t.L + 10}" height="${y - t.T + 5}" fill="${b.colorA}"/>` +
+          `<rect x="${t.L - 5}" y="${y}" width="${t.R - t.L + 10}" height="${b.trimW}" fill="${b.colorB}"/></g>`;
+      },
+      defaults: bnrDefaults({ extra: { x: 600, y: 950, size: 62, maxWidth: 760 } }),
+      field: PM.DEFAULT_FIELD,
+      layout: bnrLayout,
+      palette(d, p) {
+        const C = PM.colors;
+        d.bnr.colorA = p.primary; d.bnr.colorB = p.secondary && C.contrast(p.secondary, p.primary) > 1.25 ? p.secondary : d.field.color;
+        d.spine.outer = p.secondary || p.primary; d.spine.inner = d.field.color;
+        d.ties.top.color = p.primary; d.ties.bottom.color = '#7a5a3a';
+        d.mark.knockout.color = d.field.color;
+        if (d.stamps.ko) d.stamps.ko.color = d.field.color;
+        yearsLike(d);
+      },
+    }),
+    bannerVarsity: Object.assign({}, BGEO, {
+      name: 'Varsity Stripes Banner',
+      // cream felt with two-colour stripes running down both sides, like a letterman sleeve
+      pattern(d, g) {
+        const b = d.bnr; if (!b.show) return '';
+        const t = g.t, w = b.sideW, gp = b.sideGap, x1 = t.L + b.sideInset, x2 = t.R - b.sideInset;
+        const clip = `<defs><clipPath id="bnrClip"><polygon points="${polyPts(PM.bannerShape(b.shape, t, d.field.margin))}"/></clipPath></defs>`;
+        const bar = (x, c) => `<rect x="${x}" y="${t.T}" width="${w}" height="${t.B - t.T}" fill="${c}"/>`;
+        return clip + `<g data-part="pattern" clip-path="url(#bnrClip)">${bar(x1, b.colorA)}${bar(x1 + w + gp, b.colorB)}${bar(x2 - w, b.colorA)}${bar(x2 - 2 * w - gp, b.colorB)}</g>`;
+      },
+      defaults: bnrDefaults({ stamps: { x: 236, y: 328, items: [{ show: true, size: 70 }, { show: true, size: 70 }] },
+        extra: { x: 600, y: 900, size: 62, maxWidth: 640 }, line1: { x: 600, y: 1010, size: 84, maxWidth: 680 },
+        line2: { x: 600, y: 1180, size: 200, maxWidth: 700 }, years: { x: 600, y: 1330, size: 112, maxWidth: 660 } }),
+      field: PM.DEFAULT_FIELD,
+      layout: bnrLayout,
+      palette(d, p) {
+        d.bnr.colorA = p.primary; d.bnr.colorB = p.secondary || p.primary;
+        d.spine.outer = p.primary; d.spine.inner = p.secondary || d.field.color;
+        d.ties.top.color = p.primary; d.ties.bottom.color = '#7a5a3a';
+        yearsLike(d);
+      },
+    }),
+  });
+  PM.isBanner = (d) => !!(PM.TEMPLATES[d && d.template] || {}).banner;
+  PM.productOf = (d) => (PM.isBanner(d) ? 'banner' : 'pennant');
+  PM.templatesFor = (product) => Object.entries(PM.TEMPLATES).filter(([, v]) => (product === 'banner') === !!v.banner);
+  PM.bannerBottomAt = bannerBottomAt;
+
+  // Championship years "1986, 2004 2007" -> rows of years (perRow 0 = automatic).
+  PM.yearRows = (y) => {
+    const list = String(y.text || '').split(/[\s,;/]+/).map((v) => v.trim()).filter(Boolean);
+    if (!list.length) return [];
+    const n = list.length, per = y.perRow > 0 ? y.perRow : n <= 3 ? n : n === 4 ? 2 : n <= 9 ? 3 : 4;
+    const rows = []; for (let i = 0; i < n; i += per) rows.push(list.slice(i, i + per).join('   '));
+    return rows;
+  };
+
   // Recursive merge; arrays of objects merge item by item (so logos in stamp slots survive).
   PM.merge = (base, over) => {
     for (const k of Object.keys(over || {})) {
@@ -314,15 +446,15 @@ window.PM = window.PM || {};
 
   // ---------- Layers ----------
   // Movable layers (position objects) and every layer that can share colors.
-  PM.LAYER_KEYS = ['stamps', 'mark', 'line1', 'line2', 'extra', 'maker'];
+  PM.LAYER_KEYS = ['stamps', 'mark', 'line1', 'line2', 'extra', 'years', 'maker'];
   PM.LAYERS_ALL = [
-    ['line1', 'Wordmark line 1'], ['line2', 'Wordmark line 2'], ['extra', 'Extra text'], ['mark', 'Primary mark'],
+    ['line1', 'Wordmark line 1'], ['line2', 'Wordmark line 2'], ['extra', 'Extra text'], ['years', 'Championship years'], ['mark', 'Primary mark'],
     ['stamps', 'League stamps'], ['maker', "Maker's mark"], ['pattern', 'Background pattern'], ['spine', 'Spine'], ['ties', 'Ties'], ['field', 'Felt body'],
   ];
   PM.layer = (d, k) => (d.layers && d.layers[k]) || {};
   PM.isLocked = (d, k) => !!PM.layer(d, k).lock;
   // the design objects a layer key owns (the pattern layer covers every template's pattern settings)
-  PM.layerObjects = (d, k) => (k === 'pattern' ? [d.stripes, d.hoops, d.hockey, d.edge, d.split, d.bands, d.grid] : [d[k]]).filter(Boolean);
+  PM.layerObjects = (d, k) => (k === 'pattern' ? [d.stripes, d.hoops, d.hockey, d.edge, d.split, d.bands, d.grid, d.bnr] : [d[k]]).filter(Boolean);
 
   // Older saved designs lack settings added later (new backgrounds etc.): fill them in from the defaults.
   PM.fillMissing = (d) => {
@@ -338,10 +470,11 @@ window.PM = window.PM || {};
     const tpl = PM.TEMPLATES[key]; if (!tpl) return d;
     PM.fillMissing(d);
     const prevField = (PM.TEMPLATES[d.template] || {}).field;
+    const sameProduct = !!(PM.TEMPLATES[d.template] || {}).banner === !!tpl.banner;
     d.template = key;
     const defs = JSON.parse(JSON.stringify(tpl.defaults));
     // locked layers keep their position and size
-    for (const k of PM.LAYER_KEYS) if (PM.isLocked(d, k) && defs[k]) { delete defs[k].x; delete defs[k].y; delete defs[k].size; }
+    if (sameProduct) for (const k of PM.LAYER_KEYS) if (PM.isLocked(d, k) && defs[k]) { delete defs[k].x; delete defs[k].y; delete defs[k].size; }
     PM.merge(d, defs);
     // swap felt color only if it was still the old template's default felt
     if (!d.field.color || d.field.color === prevField || d.field.color === PM.DEFAULT_FIELD) {
@@ -394,6 +527,11 @@ window.PM = window.PM || {};
     line2: text({ text: '', font: 'Bebas Neue', size: 170, x: 1065, y: 500, maxWidth: 790 }),
     extra: text({ show: false, text: '', size: 44, x: 415, y: 690, maxWidth: 420, font: 'Oswald' }),
     maker: { show: false, src: null, x: 205, y: 690, size: 50, ko: PM.defaultKo(false, 6) },
+    // banners: shape + background settings, and the championship years block
+    bnr: { show: true, shape: 'swallow', colorA: '#8b8a8b', colorB: PM.DEFAULT_FIELD, trimW: 16, trimGap: 10, trimInset: 30, headerY: 860, sideW: 30, sideGap: 12, sideInset: 44 },
+    years: text({ show: true, text: '', font: 'Oswald', size: 118, x: 600, y: 1330, maxWidth: 820, perRow: 0, lineGap: 1.18 }),
+    // the other product's lettering, kept when switching pennant <-> banner
+    texts: {},
     // Layers panel state: lock = fixed in place; move / color = link group ('' or 'A'..'D')
     layers: {},
   });
@@ -404,6 +542,12 @@ window.PM = window.PM || {};
   // ---------- Geometry helpers ----------
   PM.geom = (d) => {
     const t = PM.TEMPLATES[d.template] || PM.TEMPLATES.classic;
+    if (t.banner) {
+      const shape = (d.bnr && d.bnr.shape) || 'swallow', m = d.field.margin;
+      return { t, banner: true, shape, cx: (t.L + t.R) / 2, tipX: t.R, tipY: (t.T + t.B) / 2,
+        body: PM.bannerShape(shape, t, 0), inset: PM.bannerShape(shape, t, m),
+        bottomAt: (x, mm = m) => bannerBottomAt(shape, t, x, mm) };
+    }
     const tipX = d.field.tipX || t.tipX;
     const tipY = (t.top + t.bottom) / 2;
     const dx = tipX - t.bodyX;
@@ -514,7 +658,55 @@ window.PM = window.PM || {};
     if (!src || typeof Image === 'undefined') return res(1);
     const i = new Image(); i.onload = () => res(i.naturalWidth && i.naturalHeight ? i.naturalWidth / i.naturalHeight : 1); i.onerror = () => res(1); i.src = src;
   });
-  PM.fitToPennant = async (d, keys = ['mark', 'line1', 'line2', 'extra']) => {
+  // Banners: logo below the sleeve and within the sides, title lines and years within the sides,
+  // and the years block above the bottom edge (which notches / points in the middle).
+  PM.fitBanner = (d, keys, ar = 1) => {
+    const g = PM.geom(d), t = g.t, pad = 12, m = d.field.margin || 18;
+    const inL = t.L + m + pad, inR = t.R - m - pad;
+    const topY = t.T + (d.spine.show ? d.spine.outerW + d.spine.innerW : 0) + pad;
+    let ch = false;
+    const M = d.mark;
+    if (keys.includes('mark') && M.show && M.src) {
+      for (let i = 0; i < 24; i++) {
+        const ko = M.knockout && M.knockout.on ? M.knockout.w || 0 : 0;
+        const hw = (ar >= 1 ? M.size : M.size * ar) / 2 + ko, hh = (ar >= 1 ? M.size / ar : M.size) / 2 + ko;
+        if (M.y - hh < topY - 0.5) { M.y = Math.round(topY + hh); ch = true; continue; }
+        if (M.x - hw >= inL - 0.5 && M.x + hw <= inR + 0.5) break;
+        M.size = Math.max(80, Math.round(M.size * Math.max(0.85, Math.min(0.97, (inR - inL) / 2 / hw)))); ch = true;
+      }
+    }
+    for (const k of ['line1', 'line2', 'extra']) {
+      const l = d[k]; if (!keys.includes(k) || !l.show) continue;
+      const allowed = 2 * Math.min(l.x - inL, inR - l.x);
+      if (PM.lineUsesImg(l)) {
+        for (let i = 0; i < 12; i++) { const b = PM.lineImgBox(l); if (b.w <= allowed + 0.5) break; l.imgScale = +((l.imgScale || 1) * Math.max(0.6, Math.min(0.97, allowed / b.w))).toFixed(3); ch = true; }
+      } else if (l.text) {
+        const w = PM.measure(l, PM.fitSize(l));
+        if (w > allowed + 0.5) { l.maxWidth = Math.max(60, Math.floor(Math.min(l.maxWidth || w, allowed))); ch = true; }
+      }
+    }
+    const y = d.years;
+    if (keys.includes('years') && y.show && PM.yearRows(y).length) {
+      const allowed = 2 * Math.min(y.x - inL, inR - y.x);
+      if (!y.maxWidth || y.maxWidth > allowed) { y.maxWidth = Math.floor(allowed); ch = true; }
+      const rows = PM.yearRows(y);
+      for (let i = 0; i < 30; i++) {
+        const s = PM.yearsSize(d);
+        const w = Math.max(...rows.map((r) => PM.measure(Object.assign({}, y, { text: r }), s)));
+        const bottom = y.y + (rows.length - 1) * (y.lineGap || 1.18) * s + 0.1 * s;
+        const limit = Math.min(g.bottomAt(y.x - w / 2), g.bottomAt(y.x + w / 2), g.bottomAt(y.x)) - pad;
+        if (bottom <= limit || y.size < 30) break;
+        y.size = Math.round(y.size * 0.95); ch = true;
+      }
+    }
+    return ch;
+  };
+  PM.fitToPennant = async (d, keys = ['mark', 'line1', 'line2', 'extra', 'years']) => {
+    if (PM.isBanner(d)) {
+      const ar = await aspectOf(d.mark && d.mark.src);
+      if (PM.ensureFonts) await PM.ensureFonts(d);
+      return PM.fitBanner(d, keys, ar);
+    }
     let markCh = false;
     if (keys.includes('mark')) markCh = PM.fitMarkToPennant(d, await aspectOf(d.mark && d.mark.src));
     if (PM.ensureFonts) await PM.ensureFonts(d);
@@ -641,6 +833,52 @@ window.PM = window.PM || {};
     return `<g data-part="${id}">${defs ? `<defs>${defs}</defs>` : ''}${behind}<image href="${src}" x="${x - size / 2}" y="${y - size / 2}" width="${size}" height="${size}" preserveAspectRatio="xMidYMid meet"${filter}/></g>`;
   }
 
+  // ---------- Banner pieces ----------
+  // Hanging cord (ties.top) from the rod ends to a hook, wooden rod (ties.bottom) through the top sleeve,
+  // the felt body in its shape, the background pattern, and the sleeve ("spine") with its stitching.
+  function bannerBase(d, g, has, opts) {
+    const t = g.t, sp = d.spine, cx = g.cx; let s = '';
+    const loops = (opts.tieStyle || 'chevron') === 'loops';
+    const rodY = t.T + (sp.show ? sp.outerW / 2 : 22);
+    if (has('ties')) {
+      if (d.ties.top.show) {
+        const w = Math.max(4, d.ties.width * 0.42), c = d.ties.top.color;
+        s += `<g data-part="tieTop"><polyline points="${pts([[t.L - 30, rodY], [cx, 52], [t.R + 30, rodY]])}" fill="none" stroke="${c}" stroke-width="${w}" stroke-linejoin="round" stroke-linecap="round"/>` +
+          (loops ? `<circle cx="${cx}" cy="52" r="${(w * 1.5).toFixed(1)}" fill="none" stroke="${c}" stroke-width="${(w * 0.7).toFixed(1)}"/>` : '') + `</g>`;
+      }
+      if (d.ties.bottom.show) {
+        const r = Math.max(8, d.ties.width * 0.5), c = d.ties.bottom.color;
+        s += `<g data-part="tieBottom"><rect x="${t.L - 48}" y="${rodY - r}" width="${t.R - t.L + 96}" height="${2 * r}" rx="${r}" fill="${c}"/>` +
+          `<circle cx="${t.L - 48}" cy="${rodY}" r="${(r * 1.7).toFixed(1)}" fill="${c}"/><circle cx="${t.R + 48}" cy="${rodY}" r="${(r * 1.7).toFixed(1)}" fill="${c}"/></g>`;
+      }
+    }
+    if (has('field')) s += `<polygon data-part="field" points="${pts(g.body)}" fill="${d.field.color}"/>`;
+    if (has('stripes')) s += t.pattern(d, g);
+    if (sp.show) {
+      if (has('spine')) s += `<g data-part="spine"><rect x="${t.L}" y="${t.T}" width="${t.R - t.L}" height="${sp.outerW}" fill="${sp.outer}"/>` +
+        (sp.innerW > 0 ? `<rect x="${t.L}" y="${t.T + sp.outerW}" width="${t.R - t.L}" height="${sp.innerW}" fill="${sp.inner}"/>` : '') + `</g>`;
+      if (has('stitch') && sp.stitchOn) {
+        const line = (ly) => `<line x1="${t.L + 6}" y1="${ly}" x2="${t.R - 6}" y2="${ly}" stroke="${sp.stitch}" stroke-width="${sp.stitchW}" stroke-dasharray="${sp.dash} ${sp.dash * 0.55}" stroke-linecap="round"/>`;
+        s += `<g data-part="stitch">${sp.stitchOuter ? line(t.T + 6) : ''}${sp.stitchSeam ? line(t.T + sp.outerW - 6) : ''}</g>`;
+      }
+    }
+    return s;
+  }
+  // Common size for every row of years (each row fits maxWidth; all rows share the smallest size).
+  PM.yearsSize = (d) => {
+    const y = d.years; let size = y.size;
+    for (const r of PM.yearRows(y)) { const w = PM.measure(Object.assign({}, y, { text: r }), y.size); if (y.maxWidth && w > y.maxWidth) size = Math.min(size, y.size * y.maxWidth / w); }
+    return size;
+  };
+  function yearsPart(d) {
+    const y = d.years; if (!y || !y.show) return '';
+    const rows = PM.yearRows(y); if (!rows.length) return '';
+    const size = PM.yearsSize(d);
+    let out = `<g data-part="years">`;
+    rows.forEach((r, i) => { out += textPart(Object.assign({}, y, { text: r, size, maxWidth: 0, y: +(y.y + i * (y.lineGap || 1.18) * size).toFixed(1), show: true, useImg: false }), 'years'); });
+    return out + `</g>`;
+  }
+
   // ---------- Main render ----------
   // opts: { layer: 'all'|'base'|'applique', parts: [...], tieStyle: 'chevron'|'loops', placeholders, fontCss, bg }
   // parts (felt mockup draws each separately): ties, field, stripes, spine, stitch, applique
@@ -653,7 +891,8 @@ window.PM = window.PM || {};
     const has = (p) => parts.has(p);
     let s = '';
 
-    {
+    if (t.banner) s += bannerBase(d, g, has, opts);
+    else {
       // Ties (behind spine). Chevron = the flat graphic; loops = folded fabric tabs (felt look).
       const loops = (opts.tieStyle || 'chevron') === 'loops';
       const tie = (cfg, y, id) => {
@@ -699,6 +938,7 @@ window.PM = window.PM || {};
       s += textPart(d.extra, 'extra');
       s += textPart(d.line2, 'line2');
       s += textPart(d.line1, 'line1');
+      if (t.banner) s += yearsPart(d);
       if (d.maker.show) s += imagePart('maker', d.maker.src, d.maker.x, d.maker.y, d.maker.size, d.maker.ko, null, ph, 'MAKER');
     }
 
@@ -712,7 +952,7 @@ window.PM = window.PM || {};
   PM.designColors = (d) => {
     PM.fillMissing(d);
     const set = new Set([d.field.color, d.spine.outer, d.spine.inner, d.spine.stitch, d.stripes.colorA, d.stripes.colorB,
-      d.ties.top.color, d.ties.bottom.color, d.hoops.wedge, d.hoops.stripe, d.hockey.color, d.edge.colorA, d.edge.colorB, d.split.top, d.split.bottom, d.bands.colorA, d.bands.colorB, d.grid.field, d.grid.endzone, d.line1.fill, d.line2.fill, d.line2.o1.color, d.line2.o2.color, d.line1.o1.color]
+      d.ties.top.color, d.ties.bottom.color, d.hoops.wedge, d.hoops.stripe, d.hockey.color, d.edge.colorA, d.edge.colorB, d.split.top, d.split.bottom, d.bands.colorA, d.bands.colorB, d.grid.field, d.grid.endzone, d.bnr.colorA, d.bnr.colorB, d.years.fill, d.line1.fill, d.line2.fill, d.line2.o1.color, d.line2.o2.color, d.line1.o1.color]
       .map(PM.colors.norm).filter(Boolean));
     return [...set];
   };

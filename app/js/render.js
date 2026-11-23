@@ -22,11 +22,11 @@ window.PM = window.PM || {};
     } finally { URL.revokeObjectURL(url); }
   };
 
-  const T = () => PM.TEMPLATES.classic;
+  const T = (d) => (d && PM.TEMPLATES[d.template]) || PM.TEMPLATES.classic;
 
   // ---------- Flat PNG ----------
   R.flat = async (d, { width = 2000, bg = null } = {}) => {
-    const t = T(), h = width * t.H / t.W;
+    const t = T(d), h = width * t.H / t.W;
     const svg = await R.svg(d, { width, height: h, bg: bg || undefined });
     return R.svgToCanvas(svg, width, h);
   };
@@ -159,7 +159,13 @@ window.PM = window.PM || {};
     x.save(); x.globalCompositeOperation = 'destination-in'; x.drawImage(src, 0, 0); x.restore();
     // frayed edges: nibble the top and bottom edges, and let a few fibers stick out
     const tipX = (d.field.tipX || t.tipX) * k, tipY = (t.top + t.bottom) / 2 * k, bx = t.bodyX * k;
-    const edges = [[bx, t.top * k, tipX, tipY, 1], [bx, t.bottom * k, tipX, tipY, -1]];
+    let edges = [[bx, t.top * k, tipX, tipY, 1], [bx, t.bottom * k, tipX, tipY, -1]];
+    if (t.banner) {
+      const poly = PM.geom(d).body.map(([px, py]) => [px * k, py * k]);
+      const cxk = poly.reduce((a, p) => a + p[0], 0) / poly.length, cyk = poly.reduce((a, p) => a + p[1], 0) / poly.length;
+      edges = poly.map((p, i) => [p, poly[(i + 1) % poly.length]]).filter(([a, b]) => !(Math.abs(a[1] - t.T * k) < 1 && Math.abs(b[1] - t.T * k) < 1))
+        .map(([a, b]) => { const nx = -(b[1] - a[1]), ny = b[0] - a[0]; return [a[0], a[1], b[0], b[1], nx * (cxk - a[0]) + ny * (cyk - a[1]) > 0 ? 1 : -1]; });
+    }
     for (const [ax, ay, ex, ey, inward] of edges) {
       const len = Math.hypot(ex - ax, ey - ay), nx = -(ey - ay) / len * inward, ny = (ex - ax) / len * inward;
       for (let i = 0; i < len / (6 * k); i++) {
@@ -174,8 +180,9 @@ window.PM = window.PM || {};
     }
     // tack holes near the top and bottom of the spine
     x.globalCompositeOperation = 'source-over';
-    for (const y of [t.top + 28, t.bottom - 28]) {
-      const hx = (t.spineX + d.spine.outerW / 2) * k, hy = y * k, r = 3.2 * k;
+    const holes = t.banner ? [[t.L + 34, t.T + d.spine.outerW / 2], [t.R - 34, t.T + d.spine.outerW / 2]] : [[t.spineX + d.spine.outerW / 2, t.top + 28], [t.spineX + d.spine.outerW / 2, t.bottom - 28]];
+    for (const [hxu, y] of holes) {
+      const hx = hxu * k, hy = y * k, r = 3.2 * k;
       const hg = x.createRadialGradient(hx, hy, 0, hx, hy, r * 1.8);
       hg.addColorStop(0, 'rgba(25,18,10,0.85)'); hg.addColorStop(0.55, 'rgba(25,18,10,0.55)'); hg.addColorStop(1, 'rgba(25,18,10,0)');
       x.fillStyle = hg; x.beginPath(); x.arc(hx, hy, r * 1.8, 0, Math.PI * 2); x.fill();
@@ -187,7 +194,7 @@ window.PM = window.PM || {};
   // bg: 'wall' (beige wall) | 'transparent' | any CSS color
   R.felt = async (d, { width = 2400, bg = 'wall', wave = 1, aged = false } = {}) => {
     if (aged) wave *= 1.5;
-    const t = T();
+    const t = T(d);
     const pad = Math.round(width * 0.06);
     const inner = width - pad * 2, k = inner / t.W, ih = Math.round(t.H * k);
     await PM.ensureFonts(d);
@@ -207,7 +214,7 @@ window.PM = window.PM || {};
     // Spine binding is folded over the edge: round it with a cross-wise light gradient
     {
       const sp = spine.getContext('2d'), x0 = t.spineX * k, x1 = (t.spineX + d.spine.outerW + d.spine.innerW) * k;
-      const g = sp.createLinearGradient(x0, 0, x1, 0);
+      const g = t.banner ? sp.createLinearGradient(0, t.T * k, 0, (t.T + d.spine.outerW + d.spine.innerW) * k) : sp.createLinearGradient(x0, 0, x1, 0);
       g.addColorStop(0, 'rgba(0,0,0,0.26)'); g.addColorStop(0.18, 'rgba(255,255,255,0.10)'); g.addColorStop(0.45, 'rgba(255,255,255,0.04)');
       g.addColorStop(0.62, 'rgba(0,0,0,0.10)'); g.addColorStop(0.7, 'rgba(255,255,255,0.06)'); g.addColorStop(1, 'rgba(0,0,0,0.18)');
       sp.save(); sp.globalCompositeOperation = 'source-atop'; sp.fillStyle = g; sp.fillRect(0, 0, inner, ih); sp.restore();
@@ -240,14 +247,17 @@ window.PM = window.PM || {};
     const amp = ih * 0.011 * wave, f1 = (Math.PI * 2) / (inner * 0.62), f2 = (Math.PI * 2) / (inner * 0.23);
     const dyAt = (x) => { const u = x / inner; return (Math.sin(x * f1 + 0.7) * 1 + Math.sin(x * f2 + 2.1) * 0.35) * amp * (0.25 + u) + u * u * ih * 0.012 * wave; };
     const strip = 2;
-    for (let x = 0; x < inner; x += strip) w.drawImage(soft, x, 0, strip, ih, pad + x, pad + dyAt(x), strip, ih);
+    const bAmp = inner * 0.007 * wave, g1 = (Math.PI * 2) / (ih * 0.55), g2f = (Math.PI * 2) / (ih * 0.19);
+    const dxAt = (y) => { const v = y / ih; return (Math.sin(y * g1 + 0.4) + Math.sin(y * g2f + 1.3) * 0.35) * bAmp * (0.1 + v); };
+    if (t.banner) for (let y = 0; y < ih; y += strip) w.drawImage(soft, 0, y, inner, strip, pad + dxAt(y), pad + y, inner, strip);
+    else for (let x = 0; x < inner; x += strip) w.drawImage(soft, x, 0, strip, ih, pad + x, pad + dyAt(x), strip, ih);
     // light the folds: slope → highlight / shade bands
     const shade = canvas(width, H), sh = shade.getContext('2d');
-    const grad = sh.createLinearGradient(pad, 0, pad + inner, 0);
+    const grad = t.banner ? sh.createLinearGradient(0, pad, 0, pad + ih) : sh.createLinearGradient(pad, 0, pad + inner, 0);
     const N = 80;
     for (let i = 0; i <= N; i++) {
-      const x = (i / N) * inner, slope = (dyAt(x + 2) - dyAt(x - 2)) / 4;
-      const a = Math.min(0.24, Math.abs(slope) * 3.2);
+      const x = (i / N) * (t.banner ? ih : inner), slope = t.banner ? (dxAt(x + 2) - dxAt(x - 2)) / 4 : (dyAt(x + 2) - dyAt(x - 2)) / 4;
+      const a = Math.min(t.banner ? 0.14 : 0.24, Math.abs(slope) * 3.2);
       grad.addColorStop(i / N, slope < 0 ? `rgba(255,250,240,${a * 0.75})` : `rgba(20,12,4,${a})`);
     }
     sh.fillStyle = grad; sh.fillRect(0, 0, width, H);
@@ -359,7 +369,7 @@ window.PM = window.PM || {};
   // → { w, h, px: Uint8ClampedArray RGBA } at native pixel size
   R.pixelGrid = async (d, { w = 128, preset = 'nes', maxColors = 0 } = {}) => {
     PM.fillMissing(d);
-    const t = T(), W = Math.round(w), H = Math.round(w * t.H / t.W), k = W / t.W;
+    const t = T(d), W = Math.round(w), H = Math.round(w * t.H / t.W), k = W / t.W;
     const P = R.PIXEL_PRESETS[preset] || R.PIXEL_PRESETS.nes;
     const blank = () => new Uint8ClampedArray(W * H * 4);
     // 1) base felt pieces, hard edges
@@ -369,7 +379,7 @@ window.PM = window.PM || {};
     {
       // the browser smooths edges even with crispEdges: snap every felt pixel to an actual pennant color
       const base = [...new Set([d.field.color, d.spine.outer, d.spine.inner, d.ties.top.color, d.ties.bottom.color,
-        d.stripes.colorA, d.stripes.colorB, d.hoops.wedge, d.hoops.stripe, d.hockey.color, d.hockey.ringColor, d.edge.colorA, d.edge.colorB, d.split.top, d.split.bottom, d.split.divider, d.bands.colorA, d.bands.colorB, d.grid.field, d.grid.endzone, d.grid.lines].map(PM.colors.norm).filter(Boolean))].map(PM.colors.rgb);
+        d.stripes.colorA, d.stripes.colorB, d.hoops.wedge, d.hoops.stripe, d.hockey.color, d.hockey.ringColor, d.edge.colorA, d.edge.colorB, d.split.top, d.split.bottom, d.split.divider, d.bands.colorA, d.bands.colorB, d.grid.field, d.grid.endzone, d.grid.lines, d.bnr.colorA, d.bnr.colorB, d.spine.stitch].map(PM.colors.norm).filter(Boolean))].map(PM.colors.rgb);
       for (let i = 0; i < px.length; i += 4) {
         if (!px[i + 3]) continue;
         let best = base[0], bd = 1e9;
@@ -411,7 +421,10 @@ window.PM = window.PM || {};
     if (d.maker.show && W >= 150) await drawImg(d.maker.src, d.maker.x, d.maker.y, d.maker.size, d.maker.ko, 3);
     // 4) lettering in a pixel font, hard edges, outlined for legibility
     await document.fonts.load(`700 16px "${PX_FONT}"`).catch(() => {});
-    for (const l of [d.extra, d.line2, d.line1]) {
+    // banners: each row of championship years is drawn like another line of lettering
+    const yearLines = PM.isBanner(d) && d.years.show ? (() => { const sz = PM.yearsSize(d), gap = d.years.lineGap || 1.18;
+      return PM.yearRows(d.years).map((r, i) => Object.assign({}, d.years, { text: r, size: sz, show: true, useImg: false, y: d.years.y + i * gap * sz })); })() : [];
+    for (const l of [d.extra, d.line2, d.line1, ...yearLines]) {
       if (PM.lineUsesImg(l)) {
         // wordmark image: drawn like a logo (few colors + outline) inside its box
         const b = PM.lineImgBox(l);

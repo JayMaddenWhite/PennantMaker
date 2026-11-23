@@ -31,6 +31,10 @@
     era: { on: false, year: 1985, useName: true },
   };
   PM.ui = st;
+  st.banner = st.banner || { kicker: '', title: 'CHAMPIONS', years: '' };
+  st.autoTplB = st.autoTplB || 'bannerRafter';
+  const isB = () => PM.isBanner(st.d);
+  const TW = () => (PM.TEMPLATES[st.d.template] || PM.TEMPLATES.classic).W, TH = () => (PM.TEMPLATES[st.d.template] || PM.TEMPLATES.classic).H;
 
   // ---------- state helpers ----------
   const get = (path) => path.split('.').reduce((o, k) => (o == null ? o : o[k]), st.d);
@@ -85,7 +89,8 @@
       }
       void before;
     }
-    if (/^(line1|line2|extra)\.(text|font|img|useImg|show)$/.test(path)) fitNow([root]);
+    if (/^(line1|line2|extra|years)\.(text|font|img|useImg|show|perRow)$/.test(path)) fitNow([root]);
+    else if (path === 'bnr.shape') fitNow(['years', 'mark']);
     else if (path === 'mark.src') fitNow(['mark', 'line1', 'line2']);
     queueRender();
   }
@@ -102,7 +107,7 @@
   // Shrink wordmark lines that poke past the felt (after their fonts load), then refresh.
   function fitNow(keys) {
     const d = st.d;
-    const ks = (keys || ['mark', 'line1', 'line2', 'extra']).filter((k) => !PM.isLocked(d, k));
+    const ks = (keys || ['mark', 'line1', 'line2', 'extra', 'years']).filter((k) => !PM.isLocked(d, k));
     PM.fitToPennant(d, ks).then((ch) => { if (ch && st.d === d) { syncInputs(); queueRender(); } }).catch(() => {});
   }
   function updUndo() { $('#undoBtn').disabled = !st.undo.length; $('#redoBtn').disabled = !st.redo.length; }
@@ -153,8 +158,8 @@
   }
 
   // ---------- click & drag on the preview ----------
-  const PART_SEC = { field: 'field', spine: 'spine', stitch: 'spine', ties: 'ties', tieTop: 'ties', tieBottom: 'ties', pattern: 'pattern', stripes: 'pattern', stamps: 'stamps', stamp1: 'stamps', stamp2: 'stamps', mark: 'mark', line1: 'line1', line2: 'line2', extra: 'extra', maker: 'maker' };
-  const DRAG = { mark: 'mark', line1: 'line1', line2: 'line2', extra: 'extra', stamp1: 'stamps', stamp2: 'stamps', stamps: 'stamps', maker: 'maker' };
+  const PART_SEC = { field: 'field', spine: 'spine', stitch: 'spine', ties: 'ties', tieTop: 'ties', tieBottom: 'ties', pattern: 'pattern', stripes: 'pattern', stamps: 'stamps', stamp1: 'stamps', stamp2: 'stamps', mark: 'mark', line1: 'line1', line2: 'line2', extra: 'extra', maker: 'maker', years: 'years' };
+  const DRAG = { mark: 'mark', line1: 'line1', line2: 'line2', extra: 'extra', years: 'years', stamp1: 'stamps', stamp2: 'stamps', stamps: 'stamps', maker: 'maker' };
   let drag = null;
   function onStageDown(e) {
     const svg = $('#stage svg'); if (!svg || st.mode === 'bulk') return;
@@ -290,7 +295,7 @@
 
   // Background (template) switcher: re-lays out and recolors the current design.
   function cTemplate() {
-    const sel = h('select', {}, Object.entries(PM.TEMPLATES).map(([k, v]) => h('option', { value: k, selected: st.d.template === k }, v.name)));
+    const sel = h('select', {}, PM.templatesFor(PM.productOf(st.d)).map(([k, v]) => h('option', { value: k, selected: st.d.template === k }, v.name)));
     sel.addEventListener('change', () => { const d = PM.setTemplate(clone(st.d), sel.value); PM.auto.layoutText(d); replaceDesign(d); toast(PM.TEMPLATES[sel.value].name); });
     return sel;
   }
@@ -310,6 +315,11 @@
 
   // Which background automatic mode uses for the next team.
   function cTplChoice() {
+    if (isB()) {
+      const sb = h('select', {}, PM.templatesFor('banner').map(([k, v]) => h('option', { value: k, selected: st.autoTplB === k }, v.name)));
+      sb.addEventListener('change', () => { st.autoTplB = sb.value; const d = PM.setTemplate(clone(st.d), sb.value); PM.auto.layoutText(d); replaceDesign(d); });
+      return sb;
+    }
     const sel = h('select', {}, [['match', 'Match the sport'], ...Object.entries(PM.TEMPLATES).map(([k, v]) => [k, v.name])]
       .map(([k, l]) => h('option', { value: k, selected: st.autoTpl === k }, l)));
     sel.addEventListener('change', () => { st.autoTpl = sel.value; });
@@ -470,7 +480,7 @@
     row('Rotate', cRange(k + '.rotate', -20, 20, 0.5)),
     row('Slant', cRange(k + '.slant', -20, 20, 0.5)),
     h('div', { class: 'sub' }, 'Position'),
-    row('X', cRange(k + '.x', 0, 2000)), row('Y', cRange(k + '.y', 0, 820)),
+    row('X', cRange(k + '.x', 0, TW())), row('Y', cRange(k + '.y', 0, TH())),
   ];
 
   const SECTIONS = {
@@ -486,16 +496,17 @@
       ],
     },
     field: {
-      title: 'Felt body', build: () => [
+      title: () => (isB() ? 'Banner shape & felt' : 'Felt body'), build: () => [
         row('Background', cTemplate()),
+        isB() ? row('Shape', cSelect('bnr.shape', PM.BANNER_SHAPES)) : null,
         row('Felt color', cColor('field.color')),
         row('Border margin', cRange('field.margin', 0, 60)),
-        row('Length (tip)', cRange('field.tipX', 1200, 1990, 5)),
+        isB() ? null : row('Length (tip)', cRange('field.tipX', 1200, 1990, 5)),
       ],
     },
     spine: {
-      title: 'Spine & stitching', build: () => [
-        row('Show spine', cCheck('spine.show')),
+      title: () => (isB() ? 'Top sleeve & stitching' : 'Spine & stitching'), build: () => [
+        row(isB() ? 'Show sleeve' : 'Show spine', cCheck('spine.show')),
         row('Outer band', cColor('spine.outer')), row('Outer width', cRange('spine.outerW', 10, 90)),
         row('Inner band', cColor('spine.inner')), row('Inner width', cRange('spine.innerW', 0, 60)),
         swapBtn('Swap outer / inner band colors', (d) => { const c = d.spine.outer; d.spine.outer = d.spine.inner; d.spine.inner = c; }, 'Spine colors swapped'),
@@ -507,7 +518,12 @@
       ],
     },
     ties: {
-      title: 'Ties', build: () => [
+      title: () => (isB() ? 'Hanging cord & rod' : 'Ties'), build: () => isB() ? [
+        row('Cord', cCheck('ties.top.show')), row('Cord color', cColor('ties.top.color')),
+        row('Rod', cCheck('ties.bottom.show')), row('Rod color', cColor('ties.bottom.color')),
+        swapBtn('Swap cord / rod colors', (d) => { const c = d.ties.top.color; d.ties.top.color = d.ties.bottom.color; d.ties.bottom.color = c; }, 'Cord and rod colors swapped'),
+        row('Thickness', cRange('ties.width', 8, 50)),
+      ] : [
         row('Top tie', cCheck('ties.top.show')), row('Top color', cColor('ties.top.color')),
         row('Bottom tie', cCheck('ties.bottom.show')), row('Bottom color', cColor('ties.bottom.color')),
         swapBtn('Swap top / bottom tie colors', (d) => { const c = d.ties.top.color; d.ties.top.color = d.ties.bottom.color; d.ties.bottom.color = c; }, 'Tie colors swapped'),
@@ -516,8 +532,22 @@
       ],
     },
     pattern: {
-      title: () => ({ hoops: 'Corner wedges & stripes', hockey: 'Wedges, center stripe & medallion', edge: 'Edge trim stripes', split: 'Two-tone split', bands: 'College bands', gridiron: 'Football field' })[st.d.template] || 'Stripes',
-      build: () => st.d.template === 'edge' ? [
+      title: () => ({ bannerRafter: 'Edge trim', bannerHeader: 'Top block & divider', bannerVarsity: 'Side stripes', hoops: 'Corner wedges & stripes', hockey: 'Wedges, center stripe & medallion', edge: 'Edge trim stripes', split: 'Two-tone split', bands: 'College bands', gridiron: 'Football field' })[st.d.template] || 'Stripes',
+      build: () => isB() ? [
+        row('Show pattern', cCheck('bnr.show')),
+        row('Shape', cSelect('bnr.shape', PM.BANNER_SHAPES)),
+        ...(st.d.template === 'bannerRafter' ? [
+          row('Trim color', cColor('bnr.colorA')), row('Pinstripe', cColor('bnr.colorB')),
+          row('Trim width', cRange('bnr.trimW', 4, 50)), row('Gap', cRange('bnr.trimGap', 0, 40)), row('Inset from edge', cRange('bnr.trimInset', 0, 90)),
+        ] : st.d.template === 'bannerHeader' ? [
+          row('Top block', cColor('bnr.colorA')), row('Divider', cColor('bnr.colorB')),
+          row('Block bottom', cRange('bnr.headerY', 400, 1400)), row('Divider width', cRange('bnr.trimW', 0, 50)),
+        ] : [
+          row('Outer stripe', cColor('bnr.colorA')), row('Inner stripe', cColor('bnr.colorB')),
+          row('Stripe width', cRange('bnr.sideW', 8, 80)), row('Gap', cRange('bnr.sideGap', 0, 40)), row('Inset from edge', cRange('bnr.sideInset', 0, 120)),
+        ]),
+        swapBtn('Swap the two pattern colors', (d) => { const c = d.bnr.colorA; d.bnr.colorA = d.bnr.colorB; d.bnr.colorB = c; }, 'Pattern colors swapped'),
+      ] : st.d.template === 'edge' ? [
         row('Show pattern', cCheck('edge.show')),
         row('Outer stripe', cColor('edge.colorA')), row('Inner stripe', cColor('edge.colorB')),
         row('Stripe width', cRange('edge.w', 8, 90)), row('Gap', cRange('edge.gap', 0, 60)), row('Inset from edge', cRange('edge.inset', 0, 80)),
@@ -579,7 +609,7 @@
         swapBtn('Swap stamp 1 / stamp 2', (d) => { const [a, b] = d.stamps.items; d.stamps.items = [b, a]; }, 'League and conference stamps swapped'),
         ...koRows('stamps.ko'),
         h('div', { class: 'sub' }, 'Placement'),
-        row('X', cRange('stamps.x', 150, 1800)), row('Y', cRange('stamps.y', 60, 780)), row('Gap', cRange('stamps.gap', 0, 60)),
+        row('X', cRange('stamps.x', 100, TW() - 100)), row('Y', cRange('stamps.y', 40, TH() - 40)), row('Gap', cRange('stamps.gap', 0, 60)),
         swapBtn("Swap places with the maker's mark", swapStampsMaker),
       ],
     },
@@ -588,7 +618,7 @@
         row('Show', cCheck('mark.show')),
         row('Logo', cImage('mark.src', 'team')),
         row('Size', cRange('mark.size', 80, 700)),
-        row('X', cRange('mark.x', 150, 1600)), row('Y', cRange('mark.y', 80, 760)),
+        row('X', cRange('mark.x', 100, TW() - 100)), row('Y', cRange('mark.y', 60, TH() - 60)),
         h('div', { class: 'sub' }, 'Outline'),
         ...koRows('mark.knockout'),
         h('div', { class: 'sub' }, 'Outer ring (traces the logo itself)'),
@@ -596,13 +626,37 @@
         st.d.template === 'hockey' ? h('p', { class: 'fine', style: 'margin:0' }, 'The circle ring around the logo on Vintage Hockey is the medallion ring: Wedges, center stripe & medallion → Ring color.') : null,
       ],
     },
-    line1: { title: 'Wordmark – line 1 (small)', build: textSec('line1') },
-    line2: { title: 'Wordmark – line 2 (big)', build: textSec('line2') },
-    extra: { title: 'Extra text', build: textSec('extra') },
+    line1: { title: () => (isB() ? 'Title – top line (e.g. WORLD SERIES)' : 'Wordmark – line 1 (small)'), build: textSec('line1') },
+    line2: { title: () => (isB() ? 'Title – big line (CHAMPIONS)' : 'Wordmark – line 2 (big)'), build: textSec('line2') },
+    extra: { title: () => (isB() ? 'Team name line' : 'Extra text'), build: textSec('extra') },
+    years: {
+      title: 'Championship years', build: () => [
+        row('Show', cCheck('years.show')),
+        row('Years', (() => {
+          const ta = h('textarea', { rows: 3, value: st.d.years.text || '', placeholder: '1986, 2004, 2007, 2013' });
+          ta.addEventListener('input', () => { st.banner.years = ta.value; change('years.text', ta.value); });
+          binders.push(() => { if (document.activeElement !== ta) ta.value = st.d.years.text || ''; });
+          return ta;
+        })()),
+        row('Per row', cSelect('years.perRow', [[0, 'Automatic'], [1, '1'], [2, '2'], [3, '3'], [4, '4'], [5, '5'], [6, '6']].map(([v, l]) => [String(v), l]), (v) => change('years.perRow', +v))),
+        row('Line spacing', cRange('years.lineGap', 0.9, 2, 0.02)),
+        row('Font', cFont('years.font')),
+        row('Size', cRange('years.size', 30, 260)),
+        row('Max width', cRange('years.maxWidth', 100, 1100, 10)),
+        row('Fill', cColor('years.fill')),
+        h('div', { class: 'sub' }, 'Outlines'),
+        row('Inner color', cColor('years.o1.color')), row('Inner width', cRange('years.o1.w', 0, 20, 0.5)),
+        row('Outer color', cColor('years.o2.color')), row('Outer width', cRange('years.o2.w', 0, 20, 0.5)),
+        swapBtn('Swap inner / outer outline colors', (d) => { const c = d.years.o1.color; d.years.o1.color = d.years.o2.color; d.years.o2.color = c; }, 'Outline colors swapped'),
+        row('Letter spacing', cRange('years.letterSpacing', -10, 40, 0.5)),
+        h('div', { class: 'sub' }, 'Position'),
+        row('X', cRange('years.x', 0, TW())), row('Y (first row)', cRange('years.y', 0, TH())),
+      ],
+    },
     maker: {
       title: "Maker's mark", build: () => [
         row('Show', cCheck('maker.show')), row('Logo', cImage('maker.src', 'team')),
-        row('Size', cRange('maker.size', 16, 160)), row('X', cRange('maker.x', 150, 1800)), row('Y', cRange('maker.y', 60, 780)),
+        row('Size', cRange('maker.size', 16, 160)), row('X', cRange('maker.x', 100, TW() - 100)), row('Y', cRange('maker.y', 40, TH() - 40)),
         swapBtn('Swap places with the league / conference stamps', swapStampsMaker),
         ...koRows('maker.ko'),
       ],
@@ -610,15 +664,16 @@
   };
   // Layers: visibility, lock, movement link group, color link group
   const VIS = {
-    line1: ['line1.show'], line2: ['line2.show'], extra: ['extra.show'], mark: ['mark.show'], maker: ['maker.show'],
+    line1: ['line1.show'], line2: ['line2.show'], extra: ['extra.show'], years: ['years.show'], mark: ['mark.show'], maker: ['maker.show'],
     stamps: ['stamps.items.0.show', 'stamps.items.1.show'], spine: ['spine.show'], ties: ['ties.top.show', 'ties.bottom.show'],
-    pattern: [() => ({ classic: 'stripes.show', hoops: 'hoops.show', hockey: 'hockey.show', edge: 'edge.show', split: 'split.show', bands: 'bands.show', gridiron: 'grid.show' })[st.d.template]],
+    pattern: [() => (isB() ? 'bnr.show' : null) || ({ classic: 'stripes.show', hoops: 'hoops.show', hockey: 'hockey.show', edge: 'edge.show', split: 'split.show', bands: 'bands.show', gridiron: 'grid.show' })[st.d.template]],
   };
   const GROUPS = ['', 'A', 'B', 'C', 'D'];
   function layersPanel() {
     const wrap = h('div', { class: 'layers' },
       h('div', { class: 'lrow lhead' }, h('span', {}, 'Layer'), h('span', { title: 'Show' }, 'Show'), h('span', { title: 'Lock in place' }, 'Lock'), h('span', { title: 'Layers with the same letter move together' }, 'Move'), h('span', { title: 'Layers with the same letter change colors together' }, 'Color')));
     for (const [k, label] of PM.LAYERS_ALL) {
+      if (k === 'years' && !isB()) continue;
       const L = PM.layer(st.d, k), movable = PM.LAYER_KEYS.includes(k);
       const visPaths = (VIS[k] || []).map((x) => (typeof x === 'function' ? x() : x));
       const vis = visPaths.length ? h('input', { type: 'checkbox', checked: visPaths.some((q) => get(q)), title: 'Show / hide' }) : h('span');
@@ -639,7 +694,7 @@
   }
   SECTIONS.layers = { title: 'Layers', build: () => [layersPanel()] };
 
-  const ORDER = ['layers', 'palette', 'field', 'spine', 'ties', 'pattern', 'stamps', 'mark', 'line1', 'line2', 'extra', 'maker'];
+  const ORDER = ['layers', 'palette', 'field', 'spine', 'ties', 'pattern', 'stamps', 'mark', 'line1', 'line2', 'years', 'extra', 'maker'];
 
   function secEl(key, open) {
     const s = SECTIONS[key];
@@ -698,19 +753,39 @@
       if (t.eraMissing) toast('No logo history found, using the current logo', 3000);
     }
     if (t.source === 'Wikipedia') t = await PM.sources.wikiDetails(t); // logo, colors, league, years from the team's page
+    if (!base && isB()) base = PM.auto.bannerBase(st.autoTplB, st.d.bnr.shape);
     if (!base) { base = PM.auto.baseFor(t, st.autoTpl); if (st.d.template === base.template) base.stripes.order = st.d.stripes.order; }
     toast('Building ' + t.name + '…', 6000);
-    const d = await PM.auto.fromTeam(t, base, { wordmark: st.useWordmark !== false });
+    const d = await PM.auto.fromTeam(t, base, { wordmark: st.useWordmark !== false, banner: bannerOpts() });
     st.lastTeam = t;
     replaceDesign(d);
-    toast(t.name + (t.eraLabel ? ` (${t.eraLabel} logo)` : '') + ' ready' + (d.line2.autoImg ? ` with the team's wordmark (${d.line2.imgFrom})` : '') +
+    toast(t.name + (t.eraLabel ? ` (${t.eraLabel} logo)` : '') + ' ready' + ((PM.isBanner(d) ? d.extra : d.line2).autoImg ? ` with the team's wordmark (${(PM.isBanner(d) ? d.extra : d.line2).imgFrom})` : '') +
       (d.mark.src ? '' : ' — no logo found, add one under Primary mark'), 4200);
   }
 
+  // Banner text the user typed in Automatic ('' kicker = from the team's league).
+  function bannerOpts() { return { kicker: st.banner.kicker, title: st.banner.title || 'CHAMPIONS', years: st.banner.years || (isB() ? st.d.years.text : '') }; }
+  function bannerCard() {
+    const inp = (key, ph, apply) => {
+      const i = h('input', { type: 'text', value: st.banner[key] || '', placeholder: ph });
+      i.addEventListener('input', () => { st.banner[key] = i.value; apply(i.value); });
+      return i;
+    };
+    const yrs = h('textarea', { rows: 2, value: st.banner.years || st.d.years.text || '', placeholder: '1986, 2004, 2007, 2013, 2018' });
+    yrs.addEventListener('input', () => { st.banner.years = yrs.value; change('years.text', yrs.value); });
+    return h('div', { class: 'card' }, h('h3', {}, 'Banner lettering'),
+      h('div', { class: 'sec-body', style: 'padding:0' },
+        row('Top line', inp('kicker', 'From the league (e.g. WORLD SERIES)', (v) => change('line1.text', v || PM.auto.kickerFor(st.lastTeam)))),
+        row('Big line', inp('title', 'CHAMPIONS', (v) => change('line2.text', v || 'CHAMPIONS'))),
+        row('Years', yrs),
+        row('Shape', cSelect('bnr.shape', PM.BANNER_SHAPES)),
+        h('p', { class: 'fine', style: 'margin:0' }, 'Separate years with commas or spaces. They line up in rows automatically (change it under Manual → Championship years).')));
+  }
   function buildAuto(p) {
     p.append(
       h('h2', {}, 'Automatic'),
-      h('p', { class: 'lead' }, 'Pick a team. Colors, logo, league stamps and wordmark are filled in for you.'),
+      h('p', { class: 'lead' }, isB() ? 'Pick a team for a championship banner. Colors, logo, league stamps and wordmark are filled in; add the title and years below.' : 'Pick a team. Colors, logo, league stamps and wordmark are filled in for you.'),
+      isB() ? bannerCard() : null,
       h('div', { class: 'card' }, h('h3', {}, 'Find a team'), teamSearch((t) => pickTeam(t)),
         h('div', { class: 'row', style: 'margin-top:10px' }, h('span', {}, 'Background'), cTplChoice()),
         h('label', { class: 'row', style: 'margin-top:6px;gap:8px;justify-content:flex-start' }, (() => {
@@ -748,11 +823,11 @@
         row('Or logo link', logoUrl),
         h('button', {
           class: 'primary', onclick: async () => {
-            const d = PM.setTemplate(PM.defaultDesign(), st.autoTpl === 'match' ? st.d.template : st.autoTpl); if (own.logo) d.mark.src = own.logo;
+            const d = isB() ? PM.auto.bannerBase(st.autoTplB, st.d.bnr.shape) : PM.setTemplate(PM.defaultDesign(), st.autoTpl === 'match' ? st.d.template : st.autoTpl); if (own.logo) d.mark.src = own.logo;
             if (!own.logo && logoUrl.value.trim()) { try { d.mark.src = await PM.sources.imageData(logoUrl.value.trim()); } catch (e) { toast('Could not load that logo link: ' + e.message, 3500); } }
             d.stamps.items.forEach((s) => { s.show = false; });
             const team = { name: [l1.value, l2.value].filter(Boolean).join(' ') || 'Custom', location: l1.value, nickname: l2.value, primary: own.p, secondary: own.s, tertiary: tChk.checked ? own.t : null };
-            replaceDesign(await PM.auto.fromTeam(team, d, { stamps: false, keepLogo: true }));
+            replaceDesign(await PM.auto.fromTeam(team, d, { stamps: false, keepLogo: true, banner: bannerOpts() }));
           },
         }, 'Generate'))));
     p.append(h('div', { class: 'card' }, h('h3', {}, 'Quick tweaks'),
@@ -796,7 +871,19 @@
     }));
     replaceDesign(d);
   }
+  // Banner versions of the guided steps (same order, banner words).
+  const BANNER_STEP = {
+    'Background & felt': { title: 'Shape & felt', tip: 'Pick the banner background (Rafter, Two-Tone or Varsity Stripes), the shape of the bottom edge, and the felt color.' },
+    Spine: { title: 'Top sleeve', tip: 'The folded sleeve the rod slides through. Suggested: the accent color with a thin cream band.' },
+    Ties: { title: 'Cord & rod', tip: 'The hanging cord and the wooden rod. Turn either off for a flat banner.' },
+    Pattern: { title: 'Trim', tip: 'Rafter: two-line trim around the edge. Two-Tone: a team-color block behind the logo. Varsity: stripes down both sides.' },
+    Stamps: { tip: 'Up to two small marks under the sleeve, like the league and conference.' },
+    Wordmark: { title: 'Title & years', secs: ['line1', 'line2', 'years'], tip: 'The top line (WORLD SERIES, STATE, CONFERENCE), the big line (CHAMPIONS) and the championship years.' },
+    Extras: { title: 'Team name & extras', tip: 'The team name (or its wordmark) under the logo, and an optional maker’s mark.' },
+  };
+  const stepsNow = () => (isB() ? STEPS.map((x) => Object.assign({}, x, BANNER_STEP[x.title] || {})) : STEPS);
   function buildGuided(p) {
+    const STEPS = stepsNow();
     const s = STEPS[st.step];
     p.append(h('h2', {}, 'Guided'),
       h('div', { class: 'steps' }, STEPS.map((x, i) => h('button', { class: i === st.step ? 'on' : i < st.step ? 'done' : '', onclick: () => { st.step = i; st.sel = null; buildPanel(); queueRender(); } }, `${i + 1}. ${x.title}`))),
@@ -814,9 +901,9 @@
 
   // ---------- MANUAL ----------
   function buildManual(p) {
-    p.append(h('h2', {}, 'Manual'), h('p', { class: 'lead' }, 'Every part is editable. Click a part on the pennant to jump to it.'));
+    p.append(h('h2', {}, 'Manual'), h('p', { class: 'lead' }, `Every part is editable. Click a part on the ${isB() ? 'banner' : 'pennant'} to jump to it.`));
     const selSec = PART_SEC[st.sel];
-    ORDER.forEach((k) => p.append(secEl(k, k === selSec || k === 'layers')));
+    ORDER.filter((k) => k !== 'years' || isB()).forEach((k) => p.append(secEl(k, k === selSec || k === 'layers')));
   }
 
   // ---------- BULK ----------
@@ -886,6 +973,13 @@
     const p = $('#panel'); p.innerHTML = '';
     ({ auto: buildAuto, guided: buildGuided, manual: buildManual, bulk: buildBulk })[st.mode](p);
     document.querySelectorAll('#modes button').forEach((b) => b.classList.toggle('on', b.dataset.mode === st.mode));
+    document.querySelectorAll('#productSw button').forEach((b) => b.classList.toggle('on', b.dataset.product === PM.productOf(st.d)));
+  }
+  function setProduct(prod) {
+    if (PM.productOf(st.d) === prod) return;
+    const d = PM.auto.toProduct(clone(st.d), prod, { tpl: prod === 'banner' ? st.autoTplB : null, team: st.lastTeam, banner: bannerOpts() });
+    replaceDesign(d);
+    toast(prod === 'banner' ? 'Championship banner: add the title and years in Automatic, or click any part to edit it' : 'Back to the pennant', 3800);
   }
   function setMode(m) { st.mode = m; if (m === 'auto' || m === 'bulk') st.sel = null; buildPanel(); queueRender(); localStorage.setItem('pm_mode', m); }
 
@@ -928,7 +1022,8 @@
   // ---------- save / open / persist ----------
   // File name: "<line 1> <line 2> - <pennant style>", e.g. "Seattle Seahawks - Vintage Baseball"
   const fileBase = () => {
-    const words = [st.d.line1, st.d.line2].filter((l) => l.show !== false && l.text).map((l) => l.text.trim()).join(' ') || st.d.name || 'Pennant';
+    const parts = isB() ? [st.d.extra, st.d.line1, st.d.line2] : [st.d.line1, st.d.line2];
+    const words = parts.filter((l) => l.show !== false && l.text && !l.useImg).map((l) => l.text.trim()).join(' ') || st.d.name || (isB() ? 'Banner' : 'Pennant');
     const style = (PM.TEMPLATES[st.d.template] || {}).name || 'Pennant';
     return `${words} - ${style}`.replace(/[<>:"/\\|?*\u0000-\u001f]+/g, '').replace(/\s+/g, ' ').trim();
   };
@@ -981,7 +1076,7 @@
     $('#exBg').closest('label').style.display = real || fmt === 'chart' ? 'none' : '';
     if (real) {   // size list shows the finished size for this design's proportions
       const sel = $('#exSize'), cur = sel.value || (fmt === 'cut' ? '9' : '12');
-      sel.innerHTML = PM.print.SIZES.map(([v, l]) => `<option value="${v}"${v === cur ? ' selected' : ''}>${l}: ${PM.print.sizeLabel(st.d, +v)}</option>`).join('');
+      sel.innerHTML = PM.print.sizesFor(st.d).map(([v, l]) => `<option value="${v}"${v === cur ? ' selected' : ''}>${l}: ${PM.print.sizeLabel(st.d, +v)}</option>`).join('');
     }
     $('#exBtn').textContent = EX_LABEL[fmt] || 'Download';
   }
@@ -1002,6 +1097,7 @@
     try { const m = localStorage.getItem('pm_mode'); if (m) st.mode = m; } catch {}
     try { const e = JSON.parse(localStorage.getItem('pm_era') || 'null'); if (e) Object.assign(st.era, e); } catch {}
     document.querySelectorAll('#modes button').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
+    document.querySelectorAll('#productSw button').forEach((b) => b.addEventListener('click', () => setProduct(b.dataset.product)));
     document.querySelectorAll('#viewSeg button').forEach((b) => b.addEventListener('click', () => {
       st.view = b.dataset.view; document.querySelectorAll('#viewSeg button').forEach((x) => x.classList.toggle('on', x === b)); followView(); render();
     }));
