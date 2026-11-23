@@ -230,6 +230,39 @@
     swapKeys(d.line1, d.line2, ['text', 'show', 'useImg', 'img', 'imgAR', 'imgScale', 'autoImg', 'imgFrom']);
     return 'Top and bottom wordmark lines swapped';
   }
+  // ---------- copy / swap style between sections ----------
+  // A lettering "style" is how it looks, not what it says or where it sits: font, colors, outlines,
+  // shadow, slant, spacing, knockout. Size, width and position stay with each line.
+  const STYLE_KEYS = ['font', 'fill', 'o1', 'o2', 'shadow', 'italic', 'letterSpacing', 'slant', 'tail', 'ko'];
+  const grabStyle = (t) => clone(Object.fromEntries(STYLE_KEYS.filter((k) => t[k] !== undefined).map((k) => [k, t[k]])));
+  const TEXT_PARTS = () => [['line1', isB() ? 'Top line' : 'Line 1 (small)'], ['line2', isB() ? 'Big line' : 'Line 2 (big)'],
+    ['extra', isB() ? 'Team name line' : 'Extra text'], ...(isB() ? [['years', 'Years']] : [])];
+  const partName = (k) => (TEXT_PARTS().find(([v]) => v === k) || [k, k])[1];
+  // the style clipboard outlives the design (paste onto another pennant), so it lives in browser storage
+  const CLIP = 'pm.styleClip', KO_CLIP = 'pm.koClip';
+  const clipGet = (key) => { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return st[key] || null; } };
+  const clipSet = (key, v) => { st[key] = v; try { localStorage.setItem(key, JSON.stringify(v)); } catch {} };
+  function restyle(fn, keys) {
+    snapshot(true); const msg = fn(st.d); fitNow(keys); buildPanel(); queueRender(); toast(msg, 2400);
+  }
+  function styleRows(k) {
+    const others = TEXT_PARTS().filter(([v]) => v !== k);
+    const sel = h('select', {}, others.map(([v, l]) => h('option', { value: v }, l)));
+    const btn = (label, title, fn) => h('button', { class: 'swap', type: 'button', title, onclick: fn }, label);
+    return [
+      h('div', { class: 'sub' }, 'Style'),
+      row('Other line', sel),
+      h('div', { class: 'row' }, h('span', {}), h('div', { class: 'col' },
+        btn('⤓ Copy its style here', 'Give this line the font, colors and outlines of the line picked above', () => restyle((d) => { Object.assign(d[k], grabStyle(d[sel.value])); return `${partName(k)} now uses the style of ${partName(sel.value)}`; }, [k])),
+        btn('⤒ Send this style there', 'Give the line picked above this line’s font, colors and outlines', () => restyle((d) => { Object.assign(d[sel.value], grabStyle(d[k])); return `${partName(sel.value)} now uses the style of ${partName(k)}`; }, [sel.value])),
+        btn('⇅ Swap styles', 'Trade fonts, colors and outlines with the line picked above', () => restyle((d) => { const a = grabStyle(d[k]), b = grabStyle(d[sel.value]); Object.assign(d[k], b); Object.assign(d[sel.value], a); return `${partName(k)} and ${partName(sel.value)} swapped styles`; }, [k, sel.value])))),
+      h('div', { class: 'row' }, h('span', {}), h('div', { class: 'col' },
+        btn('Copy style', 'Remember this style; paste it onto any line, even on another design', () => { clipSet(CLIP, grabStyle(st.d[k])); toast(`Style copied from ${partName(k)}: ${st.d[k].font}`, 2400); buildPanel(); }),
+        clipGet(CLIP) ? btn('Paste style', 'Use the copied style on this line', () => restyle((d) => { Object.assign(d[k], clone(clipGet(CLIP))); return `Style pasted onto ${partName(k)}`; }, [k])) : null,
+        btn('Use on all lines', 'Give every line this font, colors and outlines', () => restyle((d) => { const s = grabStyle(d[k]); for (const [o] of others) Object.assign(d[o], clone(s)); return `Every line now uses the style of ${partName(k)}`; }, TEXT_PARTS().map(([v]) => v)))),
+      ),
+    ];
+  }
   function cColor(path) {
     const v = () => PM.colors.norm(get(path)) || '#000000';
     const pick = h('input', { type: 'color', value: v() });
@@ -454,6 +487,9 @@
     row('Room', cRange(path + '.w', 0, 80)),
     row('Color', cColor(path + '.color')),
     row('Corner radius', cRange(path + '.radius', 0, 120)),
+    h('div', { class: 'row' }, h('span', {}), h('div', { class: 'col' },
+      h('button', { class: 'swap', type: 'button', title: 'Remember this knockout (shape, room, color, corners)', onclick: () => { clipSet(KO_CLIP, clone(get(path))); toast('Knockout copied', 2000); buildPanel(); } }, 'Copy knockout'),
+      clipGet(KO_CLIP) ? h('button', { class: 'swap', type: 'button', title: 'Use the copied knockout here', onclick: () => { snapshot(true); set(path, clone(clipGet(KO_CLIP))); buildPanel(); queueRender(); toast('Knockout pasted', 2000); } }, 'Paste knockout') : null)),
   ];
   const textSec = (k) => () => [
     row('Show', cCheck(k + '.show')),
@@ -470,6 +506,7 @@
     row('Outer color', cColor(k + '.o2.color')), row('Outer width', cRange(k + '.o2.w', 0, 20, 0.5)),
     swapBtn('Swap inner / outer outline colors', (d) => { const t = d[k]; const c = t.o1.color; t.o1.color = t.o2.color; t.o2.color = c; }, 'Outline colors swapped'),
     (k === 'line1' || k === 'line2') ? swapBtn('Swap top / bottom wordmark lines', swapLines) : null,
+    ...styleRows(k),
     ...koRows(k + '.ko'),
     h('div', { class: 'sub' }, 'Effects'),
     row('Drop shadow', cCheck(k + '.shadow.on')), row('Shadow color', cColor(k + '.shadow.color')),
@@ -649,6 +686,7 @@
         row('Outer color', cColor('years.o2.color')), row('Outer width', cRange('years.o2.w', 0, 20, 0.5)),
         swapBtn('Swap inner / outer outline colors', (d) => { const c = d.years.o1.color; d.years.o1.color = d.years.o2.color; d.years.o2.color = c; }, 'Outline colors swapped'),
         row('Letter spacing', cRange('years.letterSpacing', -10, 40, 0.5)),
+        ...styleRows('years'),
         h('div', { class: 'sub' }, 'Position'),
         row('X', cRange('years.x', 0, TW())), row('Y (first row)', cRange('years.y', 0, TH())),
       ],
