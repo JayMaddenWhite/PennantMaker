@@ -71,7 +71,7 @@ async function proxy(req, res, target) {
     let r;
     for (let hop = 0; ; hop++) {
       await assertPublic(u);
-      r = await fetch(u, { headers: { 'User-Agent': 'PennantMaker/1.0 (+https://pennantmaker.com)' }, redirect: 'manual', signal: AbortSignal.timeout(15000) });
+      r = await fetch(u, { headers: { 'User-Agent': /(^|\.)(wikipedia|wikimedia)\.org$/.test(u.hostname) ? 'PennantMaker/1.0 (+https://pennantmaker.com)' : 'PennantMaker/1.0' }, redirect: 'manual', signal: AbortSignal.timeout(15000) });
       if (r.status >= 300 && r.status < 400 && r.headers.get('location')) {
         if (hop >= MAX_REDIRECTS) return fail(508, 'too many redirects');
         u = new URL(r.headers.get('location'), u); continue;
