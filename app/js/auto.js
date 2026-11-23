@@ -37,6 +37,8 @@ window.PM = window.PM || {};
       tertiary: fromLogo[2] || team.tertiary || logoColors[2],
       field: d.field.color || PM.DEFAULT_FIELD,
     }, logoColors);
+    // team names always start out in capitals (a tall first capital throws off the pennant's taper)
+    for (const k of ['line1', 'line2', 'extra']) if (!PM.isLocked(d, k)) d[k].caps = true;
     if (PM.isBanner(d)) A.bannerText(d, team, opts.banner || {});
     PM.colors.applyPalette(d, pal, opts.style || d.wordStyle);
     const wmKey = PM.isBanner(d) ? 'extra' : 'line2';

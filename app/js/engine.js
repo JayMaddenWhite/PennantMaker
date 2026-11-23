@@ -494,6 +494,8 @@ window.PM = window.PM || {};
   const text = (over) => Object.assign({
     show: true, text: '', font: 'Oswald', size: 80, fill: '#3a3839', x: 1030, y: 330, maxWidth: 780,
     letterSpacing: 0, rotate: 0, slant: 0, italic: false,
+    // caps: every letter a capital; smallCaps: letters typed in lowercase become smaller capitals
+    caps: false, smallCaps: false,
     o1: { color: PM.DEFAULT_FIELD, w: 0 }, o2: { color: '#3a3839', w: 0 },
     shadow: { on: false, color: '#000000', dx: 5, dy: 5 }, tail: false,
     ko: PM.defaultKo(false),
@@ -523,9 +525,10 @@ window.PM = window.PM || {};
       items: [{ show: true, src: null, size: 68, label: 'League' }, { show: true, src: null, size: 68, label: 'Conference' }],
     },
     mark: { show: true, src: null, x: 415, y: 400, size: 450, knockout: { on: true, color: PM.DEFAULT_FIELD, w: 9, shape: 'outline', radius: 24 }, ring: { on: false, color: '#3a3839', w: 4 } },
-    line1: text({ text: '', font: 'Oswald Medium', size: 78, x: 1065, y: 340, maxWidth: 560 }),
-    line2: text({ text: '', font: 'Bebas Neue', size: 170, x: 1065, y: 500, maxWidth: 790 }),
-    extra: text({ show: false, text: '', size: 44, x: 415, y: 690, maxWidth: 420, font: 'Oswald' }),
+    // team names are set in capitals: a tall first capital over small lowercase throws off the pennant's taper
+    line1: text({ text: '', font: 'Oswald Medium', size: 78, x: 1065, y: 340, maxWidth: 560, caps: true }),
+    line2: text({ text: '', font: 'Bebas Neue', size: 170, x: 1065, y: 500, maxWidth: 790, caps: true }),
+    extra: text({ show: false, text: '', size: 44, x: 415, y: 690, maxWidth: 420, font: 'Oswald', caps: true }),
     maker: { show: false, src: null, x: 205, y: 690, size: 50, ko: PM.defaultKo(false, 6) },
     // banners: shape + background settings, and the championship years block
     bnr: { show: true, shape: 'swallow', colorA: '#8b8a8b', colorB: PM.DEFAULT_FIELD, trimW: 16, trimGap: 10, trimInset: 30, headerY: 860, sideW: 30, sideGap: 12, sideInset: 44 },
@@ -571,10 +574,18 @@ window.PM = window.PM || {};
     const italic = t.italic || f.style === 'italic';
     return `${italic ? 'italic ' : ''}${f.weight} ${f.stretch && f.stretch !== 'normal' ? f.stretch + ' ' : ''}${size}px "${f.family}"`;
   };
+  // The lettering as shown, in runs of [text, isSmallCap].
+  PM.SMALL_CAP = 0.76;
+  PM.textRuns = (t) => {
+    const s = String(t.text || '');
+    if (t.smallCaps) return (s.match(/\p{Ll}+|[^\p{Ll}]+/gu) || []).map((r) => [r.toUpperCase(), /\p{Ll}/u.test(r)]);
+    return [[t.caps ? s.toUpperCase() : s, false]];
+  };
+  PM.shownText = (t) => PM.textRuns(t).map((r) => r[0]).join('');
   PM.measure = (t, size) => {
-    mctx.font = PM.fontCss(t, size);
-    const w = mctx.measureText(t.text).width;
-    return w + Math.max(0, t.text.length - 1) * (t.letterSpacing || 0) * (size / t.size);
+    let w = 0, n = 0;
+    for (const [s, small] of PM.textRuns(t)) { mctx.font = PM.fontCss(t, small ? size * PM.SMALL_CAP : size); w += mctx.measureText(s).width; n += s.length; }
+    return w + Math.max(0, n - 1) * (t.letterSpacing || 0) * (size / t.size);
   };
   PM.fitSize = (t) => {
     if (!t.text) return t.size;
@@ -601,7 +612,7 @@ window.PM = window.PM || {};
     const edge = (l.o1?.w || 0) + (l.o2?.w || 0) + (l.ko?.on ? l.ko.w || 0 : 0);
     const box = () => {
       if (PM.lineUsesImg(l)) { const b = PM.lineImgBox(l); return { w: b.w, top: b.cy - b.h / 2 - edge, bot: b.cy + b.h / 2 + edge }; }
-      const size = PM.fitSize(l), below = /[gjpqy]/.test(l.text) || l.tail ? 0.3 : 0.08;
+      const size = PM.fitSize(l), below = /[gjpqy]/.test(PM.shownText(l)) || l.tail ? 0.3 : 0.08;
       return { w: PM.measure(l, size), top: l.y - 0.72 * size - edge, bot: l.y + below * size + edge };
     };
     let changed = false;
@@ -769,7 +780,7 @@ window.PM = window.PM || {};
     const fd = PM.fontDef(t.font), italic = t.italic || fd.style === 'italic';
     const base = `x="${t.x}" y="${t.y}" text-anchor="middle" font-family="${esc(fd.family)}" font-weight="${fd.weight}" font-size="${size.toFixed(1)}"` +
       `${italic ? ' font-style="italic"' : ''}${fd.stretch && fd.stretch !== 'normal' ? ` font-stretch="${fd.stretch}"` : ''}${ls ? ` letter-spacing="${ls.toFixed(1)}"` : ''}`;
-    const str = esc(t.text);
+    const str = PM.textRuns(t).map(([s, small]) => (small ? `<tspan font-size="${(size * PM.SMALL_CAP).toFixed(1)}">${esc(s)}</tspan>` : esc(s))).join('');
     const tail = t.tail ? tailPath(t.x, t.y, w, size) : null;
     const layer = (fill, stroke, sw, extra = '') => {
       const st = sw > 0 ? ` stroke="${stroke}" stroke-width="${sw}" stroke-linejoin="round" paint-order="stroke"` : '';

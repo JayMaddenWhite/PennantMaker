@@ -89,7 +89,7 @@
       }
       void before;
     }
-    if (/^(line1|line2|extra|years)\.(text|font|img|useImg|show|perRow)$/.test(path)) fitNow([root]);
+    if (/^(line1|line2|extra|years)\.(text|font|img|useImg|show|perRow|caps|smallCaps)$/.test(path)) fitNow([root]);
     else if (path === 'bnr.shape') fitNow(['years', 'mark']);
     else if (path === 'mark.src') fitNow(['mark', 'line1', 'line2']);
     queueRender();
@@ -233,7 +233,7 @@
   // ---------- copy / swap style between sections ----------
   // A lettering "style" is how it looks, not what it says or where it sits: font, colors, outlines,
   // shadow, slant, spacing, knockout. Size, width and position stay with each line.
-  const STYLE_KEYS = ['font', 'fill', 'o1', 'o2', 'shadow', 'italic', 'letterSpacing', 'slant', 'tail', 'ko'];
+  const STYLE_KEYS = ['font', 'caps', 'smallCaps', 'fill', 'o1', 'o2', 'shadow', 'italic', 'letterSpacing', 'slant', 'tail', 'ko'];
   const grabStyle = (t) => clone(Object.fromEntries(STYLE_KEYS.filter((k) => t[k] !== undefined).map((k) => [k, t[k]])));
   const TEXT_PARTS = () => [['line1', isB() ? 'Top line' : 'Line 1 (small)'], ['line2', isB() ? 'Big line' : 'Line 2 (big)'],
     ['extra', isB() ? 'Team name line' : 'Extra text'], ...(isB() ? [['years', 'Years']] : [])];
@@ -498,6 +498,7 @@
     row('Image', cImage(k + '.img', 'team')),
     row('Image size', cRange(k + '.imgScale', 0.2, 2.5, 0.05)),
     row('Font', cFont(k + '.font')),
+    row('Capitals', h('div', { class: 'col' }, cCheck(k + '.caps', 'ALL CAPS'), cCheck(k + '.smallCaps', 'Small caps'))),
     row('Size', cRange(k + '.size', 20, 320)),
     row('Max width', cRange(k + '.maxWidth', 100, 1400, 10)),
     row('Fill', cColor(k + '.fill')),
