@@ -227,18 +227,45 @@ window.PM = window.PM || {};
   };
   const cleanWiki = (v) => (v || '').replace(/<br\s*\/?>/gi, ', ').replace(/<[^>]+>/g, '').replace(/\{\{[^{}]*\}\}/g, '')
     .replace(/\[\[(?:[^|\]]*\|)?([^\]]*)\]\]/g, '$1').replace(/'''?/g, '').replace(/\s+/g, ' ').replace(/^[\s,]+|[\s,]+$/g, '');
-  S.wikiTeams = async (q, limit = 12) => {
+  // Schools: Wikipedia has one page per sport ("Ole Miss Rebels football", "... baseball") plus the athletic
+  // program's main page ("Ole Miss Rebels": intercollegiate sports teams of the university). Show the main page only.
+  const PROGRAM = /(inter)?collegiate (sports|athletic)|athletic (teams|program|department)|sports teams of|athletics program/i;
+  const SPORT_TAIL = /^(.+?)\s+(?:(?:men's|women's)\s+)?(football|baseball|softball|(?:ice )?hockey|basketball|soccer|volleyball|lacrosse|wrestling|tennis|golf|swimming(?: and diving)?|track and field|cross country|gymnastics|rowing|field hockey|beach volleyball|water polo|rugby(?: union)?)(?:\s+team)?$/i;
+  const COLLEGE = /college|university|intercollegiate|collegiate|NCAA|NAIA/i;
+  const progBase = (t) => t.replace(/\s+(athletics|sports)$/i, '');
+  S.wikiTeams = async (q, limit = 20) => {
     const j = await wj(WP + `action=query&generator=search&gsrlimit=${limit}&gsrsearch=${encodeURIComponent(q)}&prop=pageprops|description&ppprop=page_image`);
-    const pages = Object.values(j.query?.pages || {}).sort((a, b) => a.index - b.index)
-      .filter((p) => p.description && TEAMISH.test(p.description) && !NOT_TEAM.test(p.description));
+    const all = Object.values(j.query?.pages || {}).sort((a, b) => a.index - b.index).filter((p) => p.description);
+    const isProgram = (p) => PROGRAM.test(p.description) && !/\bseason\b/i.test(p.description);
+    let pages = all.filter((p) => isProgram(p) || (TEAMISH.test(p.description) && !NOT_TEAM.test(p.description)));
+    // college sport page → its program ("Mississippi State Bulldogs football" → "Mississippi State Bulldogs")
+    const parentOf = (p) => { const m = p.title.match(SPORT_TAIL); return m && COLLEGE.test(p.description + ' ' + p.title) ? m[1] : null; };
+    const programs = pages.filter(isProgram);
+    const missing = [...new Set(pages.map(parentOf).filter(Boolean))]
+      .filter((par) => !programs.some((g) => g.title === par || progBase(g.title) === par || par.startsWith(progBase(g.title) + ' ')));
+    if (missing.length) {
+      try {
+        const r = await wj(WP + 'action=query&redirects=1&prop=pageprops|description&ppprop=page_image&titles=' + encodeURIComponent(missing.join('|')));
+        for (const g of Object.values(r.query?.pages || {})) if (g.pageid && g.description && isProgram(g) && !programs.some((x) => x.pageid === g.pageid)) {
+          g.index = Math.min(...pages.filter((p) => { const par = parentOf(p); return par && (par === g.title || (r.query.redirects || []).some((x) => x.from === par && x.to === g.title)); }).map((p) => p.index), 99);
+          programs.push(g); pages.push(g);
+        }
+      } catch {}
+    }
+    // drop a school's per-sport pages when its main program page is there
+    const covered = (p) => { const par = parentOf(p); return par && programs.some((g) => g !== p && (g.title === par || par.startsWith(progBase(g.title)) || progBase(g.title).startsWith(par))); };
+    pages = pages.filter((p) => isProgram(p) || !covered(p)).sort((a, b) => a.index - b.index);
     const urls = await wikiFileUrls(pages.map((p) => p.pageprops?.page_image).filter(Boolean)).catch(() => ({}));
-    return pages.map((p) => {
-      const name = p.title.replace(/\s*\([^)]*\)\s*$/, ''), words = name.split(' ');
+    const list = pages.map((p) => {
+      const name = progBase(p.title.replace(/\s*\([^)]*\)\s*$/, '')), words = name.split(' ');
       const logo = p.pageprops?.page_image ? urls[normFile(p.pageprops.page_image)] || null : null;
-      return { source: 'Wikipedia', name, wikiTitle: p.title, leagueLabel: p.description.replace(/^./, (c) => c.toUpperCase()),
-        sport: S.sportOf(p.description + ' ' + p.title), location: words.length > 1 ? words.slice(0, -1).join(' ') : '', nickname: words[words.length - 1],
+      return { source: 'Wikipedia', name, wikiTitle: p.title, leagueLabel: p.description.replace(/^./, (c) => c.toUpperCase()), college: isProgram(p) || undefined,
+        sport: isProgram(p) ? null : S.sportOf(p.description + ' ' + p.title), location: words.length > 1 ? words.slice(0, -1).join(' ') : '', nickname: words[words.length - 1],
         logo, logos: logo ? [{ url: logo, tag: 'logo' }] : [] };
     });
+    // school pages carry their logo in the infobox only (no search thumbnail): read the first few now
+    await Promise.all(list.filter((t) => t.college && !t.logo).slice(0, 3).map(async (t) => Object.assign(t, await S.wikiDetails(t))));
+    return list;
   };
   // Color names used in infoboxes that CSS doesn't know.
   const SPORT_COLORS = { 'burnt orange': '#cc5500', 'old gold': '#cfb53b', 'vegas gold': '#c5b358', 'athletic gold': '#ffb81c', 'kelly green': '#4cbb17',
@@ -277,10 +304,15 @@ window.PM = window.PM || {};
         if (u) { t.logo = u; t.logos = [{ url: u, tag: 'logo' }, ...(t.logos || []).filter((l) => l.url !== u)]; }
       }
       // leagues: keep the linked page titles so the league's own logo can be found for the stamp
-      const lg = field('league|leagues');
+      const lg = field('league|leagues|conference');
       t.leagues = [...lg.matchAll(/\[\[([^|\]]+)(?:\|([^\]]+))?\]\]/g)].map((m) => ({ page: m[1].trim(), label: (m[2] || m[1]).trim() }))
         .filter((x) => !/^\d{4}|season/i.test(x.page));
+      if (t.college) t.leagues = t.leagues.slice(0, 1);  // "SEC (primary)" comes first; later ones are single-sport
       if (t.leagues.length) t.leagueLabel = t.leagues[t.leagues.length - 1].page;
+      // a wordmark in the infobox (schools often list it as the alternate logo)
+      const files = (v) => (v.match(/([^\[\]|:=]+?\.(?:svg|png|gif))/gi) || []).map((f) => f.trim());
+      const wm = files(field('wordmark'))[0] || files(field('altlogo|alt_logo|logo_alt|secondary_logo')).find((f) => /word\s*mark|script/i.test(f));
+      if (wm) { const u = (await wikiFileUrls([wm]).catch(() => ({})))[normFile(wm)]; if (u) t.wordmark = u; }
       const founded = cleanWiki(field('founded|established')).match(/\d{4}/)?.[0], folded = cleanWiki(field('folded|dissolved|defunct')).match(/\d{4}/)?.[0];
       if (founded || folded) t.years = `${founded || '?'}–${folded || 'now'}`;
       const nm = cleanWiki(field('name|team_name'));
@@ -296,7 +328,12 @@ window.PM = window.PM || {};
   // Logo of a Wikipedia page (e.g. a league) via its lead image.
   S.wikiPageLogo = async (title) => {
     const j = await wj(WP + 'action=query&redirects=1&prop=pageprops&ppprop=page_image&titles=' + encodeURIComponent(title));
-    const f = Object.values(j.query?.pages || {})[0]?.pageprops?.page_image;
+    let f = Object.values(j.query?.pages || {})[0]?.pageprops?.page_image;
+    if (!f) { // no lead image: take the infobox logo
+      const w = (await wj(WP + 'action=parse&prop=wikitext&section=0&redirects=1&page=' + encodeURIComponent(title)).catch(() => null))?.parse?.wikitext?.['*'] || '';
+      const m = w.match(/^\s*\|\s*(?:logo|image)\s*=\s*(?:\[\[)?(?:File:|Image:)?([^|\]\n]+?\.(?:svg|png|gif|jpe?g))/im);
+      f = m && m[1].trim();
+    }
     return f ? (await wikiFileUrls([f]))[normFile(f)] || null : null;
   };
 
@@ -304,6 +341,7 @@ window.PM = window.PM || {};
   // Wikimedia Commons first (clean lettering-only files), then TheSportsDB's team "logo" (wordmark or lockup).
   S.wordmarks = async (team, year) => {
     const out = [];
+    if (team.wordmark && !year) out.push({ url: team.wordmark, from: 'Wikipedia' });
     const nick = (team.nickname || team.name || '').toLowerCase(), squash = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
     try {
       const hits = (await S.commonsSearch(team.name + ' wordmark', 12)).filter((h) => /word\s*mark/i.test(h.name) &&
@@ -401,11 +439,13 @@ window.PM = window.PM || {};
         if (b) out.push({ url: b, label: L.label });
       }
     } else if (team.source === 'Wikipedia') {
+      if (team.college) out.push({ url: 'https://a.espncdn.com/i/espn/misc_logos/500/ncaa.png', label: 'NCAA' });
       // the team's (most recent) league, logo from that league's own Wikipedia page
       const MAJOR = { 'National Football League': 'NFL', 'Major League Baseball': 'MLB', 'National Basketball Association': 'NBA', 'National Hockey League': 'NHL' };
       for (const L of (team.leagues || []).slice().reverse()) {
         const url = MAJOR[L.page] ? S.LEAGUE_STAMPS[MAJOR[L.page]] : await S.wikiPageLogo(L.page).catch(() => null);
-        if (url) { out.push({ url, label: L.label }); break; }
+        const conf = url || (team.college ? (await S.commonsSearch(L.page, 6).catch(() => []))[0]?.url : null);
+        if (conf) { out.push({ url: conf, label: L.label }); break; }
       }
     } else if (S.LEAGUE_STAMPS[team.leagueGuess] && (team.source === 'Logopedia' || /defunct/i.test(team.leagueLabel || '') || !team.tsdbLeagueId)) {
       out.push({ url: S.LEAGUE_STAMPS[team.leagueGuess], label: team.leagueGuess });
