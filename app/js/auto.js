@@ -40,6 +40,7 @@ window.PM = window.PM || {};
     PM.colors.applyPalette(d, pal, opts.style || d.wordStyle);
     if (opts.wordmark !== false && !PM.isLocked(d, 'line2')) await A.useWordmark(d, team);
     A.layoutText(d);
+    await A.fit(d);
     return d;
   };
 
@@ -122,6 +123,9 @@ window.PM = window.PM || {};
     }
     if (d.wordStyle === 'script') { d.line2.size = L.size2 + 20; d.line2.y = (has1 ? L.l2y : L.soloY) + 10; }
   };
+
+  // Shrink / nudge the unlocked logo and wordmark lines so nothing spills over the spine or the pennant's edges.
+  A.fit = (d) => PM.fitToPennant(d, ['mark', 'line1', 'line2', 'extra'].filter((k) => !PM.isLocked(d, k))).catch(() => false);
 
   // Which background suits a team: basketball → Vintage Hoops, hockey → Vintage Hockey, everything else → Vintage Baseball.
   A.templateFor = (team) => {

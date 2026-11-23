@@ -85,6 +85,8 @@
       }
       void before;
     }
+    if (/^(line1|line2|extra)\.(text|font|img|useImg|show)$/.test(path)) fitNow([root]);
+    else if (path === 'mark.src') fitNow(['mark', 'line1', 'line2']);
     queueRender();
   }
   function setLayer(k, prop, v) {
@@ -93,7 +95,16 @@
     st.d.layers[k] = Object.assign({}, st.d.layers[k], { [prop]: v });
     buildPanel(); queueRender();
   }
-  function replaceDesign(nd, { rebuild = true } = {}) { snapshot(true); st.d = nd; if (rebuild) buildPanel(); queueRender(); }
+  function replaceDesign(nd, { rebuild = true, fit = true } = {}) {
+    snapshot(true); st.d = nd; if (rebuild) buildPanel(); queueRender();
+    if (fit) fitNow(); // a fresh layout never starts out spilling over the pennant's edges
+  }
+  // Shrink wordmark lines that poke past the felt (after their fonts load), then refresh.
+  function fitNow(keys) {
+    const d = st.d;
+    const ks = (keys || ['mark', 'line1', 'line2', 'extra']).filter((k) => !PM.isLocked(d, k));
+    PM.fitToPennant(d, ks).then((ch) => { if (ch && st.d === d) { syncInputs(); queueRender(); } }).catch(() => {});
+  }
   function updUndo() { $('#undoBtn').disabled = !st.undo.length; $('#redoBtn').disabled = !st.redo.length; }
   function undo() { if (!st.undo.length) return; st.redo.push(JSON.stringify(st.d)); st.d = JSON.parse(st.undo.pop()); st.lastSnap = 0; updUndo(); buildPanel(); queueRender(); }
   function redo() { if (!st.redo.length) return; st.undo.push(JSON.stringify(st.d)); st.d = JSON.parse(st.redo.pop()); st.lastSnap = 0; updUndo(); buildPanel(); queueRender(); }
@@ -1027,7 +1038,7 @@
     $('#openBtn').onclick = () => $('#openFile').click();
     $('#openFile').addEventListener('change', async (e) => {
       const f = e.target.files[0]; if (!f) return;
-      try { replaceDesign(load(JSON.parse(await f.text()))); toast('Opened ' + f.name); } catch { toast('That file is not a pennant design'); }
+      try { replaceDesign(load(JSON.parse(await f.text())), { fit: false }); toast('Opened ' + f.name); } catch { toast('That file is not a pennant design'); }
       e.target.value = '';
     });
     $('#exBtn').onclick = doExport;

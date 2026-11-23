@@ -438,6 +438,98 @@ window.PM = window.PM || {};
     return t.maxWidth && w > t.maxWidth ? t.size * t.maxWidth / w : t.size;
   };
 
+  // ---------- Keep wordmark lines inside the pennant ----------
+  // The felt narrows toward the tip, so a line that fits its width box can still poke through the slanted
+  // edges. Shrink the line (text: maxWidth, image: imgScale) until its box sits inside the felt with some room.
+  // Only ever shrinks; assumes the line's fonts are loaded (use PM.fitToPennant for that).
+  PM.fitLineToPennant = (d, k, opts = {}) => {
+    const l = d[k];
+    if (!l || !l.show || (!l.text && !PM.lineUsesImg(l))) return false;
+    const g = PM.geom(d), t = g.t, pad = 10; // px of felt kept between the line and the pennant's edge
+    // furthest right the box may reach at a given top / bottom
+    const reach = (yTop, yBot) => Math.min(
+      g.tipX - pad,
+      t.bodyX + (yTop - t.top - pad) / g.a,
+      t.bodyX + (yBot + pad - t.bottom) / g.b);
+    // furthest left: clear of the primary mark (or the spine)
+    const left = d.mark && d.mark.show && d.mark.src !== undefined && d.mark.x + d.mark.size / 2 < l.x
+      ? d.mark.x + d.mark.size / 2 + 24 : t.bodyX + 60;
+    const edge = (l.o1?.w || 0) + (l.o2?.w || 0) + (l.ko?.on ? l.ko.w || 0 : 0);
+    const box = () => {
+      if (PM.lineUsesImg(l)) { const b = PM.lineImgBox(l); return { w: b.w, top: b.cy - b.h / 2 - edge, bot: b.cy + b.h / 2 + edge }; }
+      const size = PM.fitSize(l), below = /[gjpqy]/.test(l.text) || l.tail ? 0.3 : 0.08;
+      return { w: PM.measure(l, size), top: l.y - 0.72 * size - edge, bot: l.y + below * size + edge };
+    };
+    let changed = false;
+    for (let i = 0; i < 14; i++) {
+      const bx = box(), xr = reach(bx.top, bx.bot);
+      const over = l.x + bx.w / 2 - xr;
+      if (over <= 0.5) break;
+      // 1) slide left into the taller part of the pennant, if there's free felt there
+      const slack = opts.shift === false ? 0 : (l.x - bx.w / 2) - left;
+      if (slack > 1) { l.x = Math.round(l.x - Math.min(over, slack)); changed = true; continue; }
+      // 2) still too big: shrink
+      const allowed = 2 * (xr - l.x);
+      if (PM.lineUsesImg(l)) {
+        if ((l.imgScale || 1) < 0.3) break;
+        l.imgScale = +((l.imgScale || 1) * Math.max(0.6, Math.min(0.97, allowed / bx.w))).toFixed(3);
+      } else l.maxWidth = Math.max(60, Math.floor(Math.min(l.maxWidth || bx.w, allowed, bx.w * 0.97)));
+      changed = true;
+    }
+    return changed;
+  };
+  // Primary logo: clear of the spine and inside the slanted edges (slide right / re-centre first, then shrink).
+  // ar = the logo image's width / height (it's drawn fitted inside a size x size square).
+  PM.fitMarkToPennant = (d, ar = 1) => {
+    const m = d.mark;
+    if (!m || !m.show || !m.src) return false;
+    const g = PM.geom(d), t = g.t, pad = 10;
+    const yTop = (x) => t.top + g.a * (x - t.bodyX), yBot = (x) => t.bottom + g.b * (x - t.bodyX);
+    const ext = () => {
+      const ko = m.knockout && m.knockout.on ? m.knockout.w || 0 : 0, ring = m.ring && m.ring.on ? m.ring.w || 0 : 0;
+      if (d.template === 'hockey' && d.hockey && d.hockey.show && d.hockey.medallion) { const r = m.size / 2 * (d.hockey.medScale || 1) + 6; return [r, r]; }
+      if (m.knockout && m.knockout.on && m.knockout.shape && m.knockout.shape !== 'outline') { const r = m.size / 2 + ko; return [r, r]; }
+      const hw = (ar >= 1 ? m.size : m.size * ar) / 2, hh = (ar >= 1 ? m.size / ar : m.size) / 2;
+      return [hw + ko + ring, hh + ko + ring];
+    };
+    let changed = false;
+    for (let i = 0; i < 30; i++) {
+      const [hw, hh] = ext();
+      const minX = t.bodyX + pad + hw;
+      if (m.x < minX - 0.5) { m.x = Math.round(minX); changed = true; continue; }            // off the spine
+      const xr = m.x + hw, top = yTop(xr) + pad, bot = yBot(xr) - pad;
+      if (m.y - hh >= top - 0.5 && m.y + hh <= bot + 0.5) break;                               // fits
+      const mid = (top + bot) / 2;
+      if (hh <= (bot - top) / 2 && Math.abs(m.y - mid) > 0.5) { m.y = Math.round(mid); changed = true; continue; } // re-centre
+      // shrink, keeping the left edge where it is
+      const k = Math.max(0.85, Math.min(0.97, (bot - top) / 2 / hh));
+      const leftEdge = m.x - hw;
+      m.size = Math.max(60, Math.round(m.size * k));
+      m.x = Math.round(leftEdge + ext()[0]); changed = true;
+      if (m.size <= 60) break;
+    }
+    return changed;
+  };
+  const aspectOf = (src) => new Promise((res) => {
+    if (!src || typeof Image === 'undefined') return res(1);
+    const i = new Image(); i.onload = () => res(i.naturalWidth && i.naturalHeight ? i.naturalWidth / i.naturalHeight : 1); i.onerror = () => res(1); i.src = src;
+  });
+  PM.fitToPennant = async (d, keys = ['mark', 'line1', 'line2', 'extra']) => {
+    let markCh = false;
+    if (keys.includes('mark')) markCh = PM.fitMarkToPennant(d, await aspectOf(d.mark && d.mark.src));
+    if (PM.ensureFonts) await PM.ensureFonts(d);
+    // the two wordmark lines share a centre: fit the big line (which may slide), then bring line 1 along
+    const together = keys.includes('line1') && keys.includes('line2') && Math.abs(d.line1.x - d.line2.x) < 2;
+    let ch = false;
+    if (keys.includes('line2')) ch = PM.fitLineToPennant(d, 'line2') || ch;
+    if (keys.includes('line1')) {
+      if (together && d.line1.x !== d.line2.x) { d.line1.x = d.line2.x; ch = true; }
+      ch = PM.fitLineToPennant(d, 'line1', { shift: !together }) || ch;
+    }
+    if (keys.includes('extra')) ch = PM.fitLineToPennant(d, 'extra') || ch;
+    return ch || markCh;
+  };
+
   // ---------- Parts ----------
   function tailPath(x, y, w, s) {
     const L = x - w / 2 + w * 0.04, R = x + w / 2;
