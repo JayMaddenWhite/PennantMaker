@@ -195,6 +195,25 @@
 
   // ---------- controls ----------
   const row = (label, ctl) => h('div', { class: 'row' }, h('span', {}, label), ctl);
+  // One-click swap: flips two settings (colors, places, contents) in one undoable step.
+  const swapBtn = (label, fn, done) => h('div', { class: 'row' }, h('span', {}),
+    h('button', { class: 'swap', type: 'button', onclick: () => { snapshot(true); const msg = fn(st.d); buildPanel(); queueRender(); toast(msg || done || 'Swapped', 2200); } }, '⇅ ' + label));
+  const swapKeys = (a, b, keys) => { for (const k of keys) { const t = a[k]; a[k] = b[k]; b[k] = t; } };
+  // Stamps and maker's mark trade places (centre for centre; the stamp row keeps its spacing).
+  function swapStampsMaker(d) {
+    const S = d.stamps, M = d.maker;
+    const shown = S.items.filter((it) => it.show);
+    const W = shown.reduce((w, it) => w + it.size, 0) + Math.max(0, shown.length - 1) * S.gap;
+    const cx = S.x + W / 2, cy = S.y;
+    S.x = Math.round(M.x - W / 2); S.y = Math.round(M.y);
+    M.x = Math.round(cx); M.y = Math.round(cy);
+    return "Stamps and maker's mark swapped places" + (M.show ? '' : " (the maker's mark is switched off)");
+  }
+  // Top and bottom wordmark lines trade what they say (text or image); each line keeps its own look.
+  function swapLines(d) {
+    swapKeys(d.line1, d.line2, ['text', 'show', 'useImg', 'img', 'imgAR', 'imgScale', 'autoImg', 'imgFrom']);
+    return 'Top and bottom wordmark lines swapped';
+  }
   function cColor(path) {
     const v = () => PM.colors.norm(get(path)) || '#000000';
     const pick = h('input', { type: 'color', value: v() });
@@ -428,6 +447,8 @@
     h('div', { class: 'sub' }, 'Outlines'),
     row('Inner color', cColor(k + '.o1.color')), row('Inner width', cRange(k + '.o1.w', 0, 20, 0.5)),
     row('Outer color', cColor(k + '.o2.color')), row('Outer width', cRange(k + '.o2.w', 0, 20, 0.5)),
+    swapBtn('Swap inner / outer outline colors', (d) => { const t = d[k]; const c = t.o1.color; t.o1.color = t.o2.color; t.o2.color = c; }, 'Outline colors swapped'),
+    (k === 'line1' || k === 'line2') ? swapBtn('Swap top / bottom wordmark lines', swapLines) : null,
     ...koRows(k + '.ko'),
     h('div', { class: 'sub' }, 'Effects'),
     row('Drop shadow', cCheck(k + '.shadow.on')), row('Shadow color', cColor(k + '.shadow.color')),
@@ -466,6 +487,7 @@
         row('Show spine', cCheck('spine.show')),
         row('Outer band', cColor('spine.outer')), row('Outer width', cRange('spine.outerW', 10, 90)),
         row('Inner band', cColor('spine.inner')), row('Inner width', cRange('spine.innerW', 0, 60)),
+        swapBtn('Swap outer / inner band colors', (d) => { const c = d.spine.outer; d.spine.outer = d.spine.inner; d.spine.inner = c; }, 'Spine colors swapped'),
         h('div', { class: 'sub' }, 'Stitching'),
         row('Stitching', cCheck('spine.stitchOn')),
         row('Outer edge', cCheck('spine.stitchOuter')), row('Seam', cCheck('spine.stitchSeam')),
@@ -477,6 +499,7 @@
       title: 'Ties', build: () => [
         row('Top tie', cCheck('ties.top.show')), row('Top color', cColor('ties.top.color')),
         row('Bottom tie', cCheck('ties.bottom.show')), row('Bottom color', cColor('ties.bottom.color')),
+        swapBtn('Swap top / bottom tie colors', (d) => { const c = d.ties.top.color; d.ties.top.color = d.ties.bottom.color; d.ties.bottom.color = c; }, 'Tie colors swapped'),
         row('Thickness', cRange('ties.width', 8, 50)),
         row('Felt mockup', cSelect('ties.feltStyle', [['loops', 'Fabric loops'], ['chevron', 'Same as flat']])),
       ],
@@ -542,9 +565,11 @@
           row('Logo', cImage(`stamps.items.${i}.src`, 'league')),
           row('Size', cRange(`stamps.items.${i}.size`, 20, 160)),
         ]),
+        swapBtn('Swap stamp 1 / stamp 2', (d) => { const [a, b] = d.stamps.items; d.stamps.items = [b, a]; }, 'League and conference stamps swapped'),
         ...koRows('stamps.ko'),
         h('div', { class: 'sub' }, 'Placement'),
-        row('X', cRange('stamps.x', 150, 700)), row('Y', cRange('stamps.y', 60, 300)), row('Gap', cRange('stamps.gap', 0, 60)),
+        row('X', cRange('stamps.x', 150, 1800)), row('Y', cRange('stamps.y', 60, 780)), row('Gap', cRange('stamps.gap', 0, 60)),
+        swapBtn("Swap places with the maker's mark", swapStampsMaker),
       ],
     },
     mark: {
@@ -567,6 +592,7 @@
       title: "Maker's mark", build: () => [
         row('Show', cCheck('maker.show')), row('Logo', cImage('maker.src', 'team')),
         row('Size', cRange('maker.size', 16, 160)), row('X', cRange('maker.x', 150, 1800)), row('Y', cRange('maker.y', 60, 780)),
+        swapBtn('Swap places with the league / conference stamps', swapStampsMaker),
         ...koRows('maker.ko'),
       ],
     },

@@ -76,6 +76,7 @@ details.sec.hl { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in
 .sec-body { padding: 10px 12px; display: flex; flex-direction: column; gap: 9px; }
 .row { display: grid; grid-template-columns: 112px 1fr; gap: 8px; align-items: center; }
 .row > span { color: var(--muted); font-size: 12.5px; }
+button.swap { justify-self: start; padding: 5px 10px; font-size: 12px; border-radius: 6px; }
 .row input[type=range] { width: 100%; }
 .rng { display: flex; gap: 6px; align-items: center; }
 .rng input[type=range] { flex: 1; min-width: 0; }
