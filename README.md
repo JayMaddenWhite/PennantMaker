@@ -54,6 +54,12 @@ Nothing is bundled. Logos are fetched on demand, held in memory, and only stored
    CBA, Arena Football/af2, USL and more). Every search includes it; picking a result reads the team's infobox for
    its logo, colors, league, years and city, and the league's own logo becomes the stamp. Minor-league hockey,
    basketball and football teams get the matching background.
+Team wordmarks: when a team's own lettering is found (Wikimedia Commons, then TheSportsDB) and reads on the felt,
+Automatic and Guided put it in place of the big text line and hide the small line. A felt-coloured edge is added when
+the background behind it is dark. Turn it off with "Use the team's own wordmark" in Automatic, or untick
+**Image instead of text** under Wordmark line 2. With no wordmark, the default lettering is the clean style
+(Oswald Medium over Bebas Neue).
+
 7. Link-outs for anything still missing: Fun While It Lasted (funwhileitlasted.net, a defunct-teams database)
    and SportsLogos.net. Drag the logo onto a slot or paste its image address under **Link**.
 

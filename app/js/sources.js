@@ -300,6 +300,27 @@ window.PM = window.PM || {};
     return f ? (await wikiFileUrls([f]))[normFile(f)] || null : null;
   };
 
+  // ---------- Team wordmarks (the team's own lettering, used instead of a font when found) ----------
+  // Wikimedia Commons first (clean lettering-only files), then TheSportsDB's team "logo" (wordmark or lockup).
+  S.wordmarks = async (team, year) => {
+    const out = [];
+    const nick = (team.nickname || team.name || '').toLowerCase(), squash = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+    try {
+      const hits = (await S.commonsSearch(team.name + ' wordmark', 12)).filter((h) => /word\s*mark/i.test(h.name) &&
+        (h.name.toLowerCase().includes(nick) || squash(h.name).includes(squash(team.nickname || team.name))));
+      const yr = (h) => +(h.name.match(/\b(18|19|20)\d\d\b/) || [0])[0];
+      // current logos: undated files first, then newest; vintage: the file dated closest to (not after) that year
+      hits.sort((a, b) => year ? Math.abs((yr(a) || 3000) - year) - Math.abs((yr(b) || 3000) - year) : (!yr(a) - !yr(b)) * -1 || yr(b) - yr(a));
+      hits.slice(0, 3).forEach((h) => out.push({ url: h.url, from: 'Wikimedia Commons' }));
+    } catch {}
+    if (!year) try {
+      const ts = team.source === 'TheSportsDB' ? team : (await S.tsdbTeams(team.name)).find((t) => t.name.toLowerCase() === (team.name || '').toLowerCase());
+      const w = ts?.logos?.find((l) => l.tag.startsWith('wordmark'));
+      if (w) out.push({ url: w.url, from: 'TheSportsDB' });
+    } catch {}
+    return out;
+  };
+
   // Link-outs for teams no API covers well.
   S.funWhileItLastedUrl = (q) => 'https://funwhileitlasted.net/?s=' + encodeURIComponent((q || '').trim());
   S.sportsLogosUrl = (q) => 'https://www.google.com/search?q=' + encodeURIComponent('site:sportslogos.net ' + (q || '').trim());

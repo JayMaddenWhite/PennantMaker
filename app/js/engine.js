@@ -29,7 +29,7 @@ window.PM = window.PM || {};
         return s + `</g>`;
       },
       defaults: {
-        wordStyle: 'block',
+        wordStyle: 'classic',
         field: { margin: 18, tipX: 1905 },
         spine: { outerW: 40, innerW: 18, stitchSeam: true },
         ties: { top: { show: true }, bottom: { show: true } },
@@ -244,7 +244,7 @@ window.PM = window.PM || {};
         return s + `</g>`;
       },
       defaults: {
-        wordStyle: 'block',
+        wordStyle: 'classic',
         field: { margin: 18, tipX: 1905 },
         spine: { outerW: 40, innerW: 18, stitchSeam: true },
         ties: { top: { show: true }, bottom: { show: true } },
@@ -373,7 +373,7 @@ window.PM = window.PM || {};
     version: 1,
     template: 'classic',
     name: 'Starter',
-    wordStyle: 'block',
+    wordStyle: 'classic',
     palette: { primary: '#3a3839', secondary: '#8b8a8b', tertiary: null, field: PM.DEFAULT_FIELD },
     field: { color: PM.DEFAULT_FIELD, margin: 18, tipX: 1905 },
     spine: { show: true, outer: '#3a3839', inner: '#8b8a8b', outerW: 40, innerW: 18, stitch: '#f4ecd8', stitchOn: true, stitchOuter: true, stitchSeam: true, stitchW: 1.8, dash: 7 },
@@ -390,8 +390,8 @@ window.PM = window.PM || {};
       items: [{ show: true, src: null, size: 68, label: 'League' }, { show: true, src: null, size: 68, label: 'Conference' }],
     },
     mark: { show: true, src: null, x: 415, y: 400, size: 450, knockout: { on: true, color: PM.DEFAULT_FIELD, w: 9, shape: 'outline', radius: 24 }, ring: { on: false, color: '#3a3839', w: 4 } },
-    line1: text({ text: '', size: 78, x: 1065, y: 340, maxWidth: 560 }),
-    line2: text({ text: '', font: 'Graduate', size: 170, x: 1065, y: 500, maxWidth: 790 }),
+    line1: text({ text: '', font: 'Oswald Medium', size: 78, x: 1065, y: 340, maxWidth: 560 }),
+    line2: text({ text: '', font: 'Bebas Neue', size: 170, x: 1065, y: 500, maxWidth: 790 }),
     extra: text({ show: false, text: '', size: 44, x: 415, y: 690, maxWidth: 420, font: 'Oswald' }),
     maker: { show: false, src: null, x: 205, y: 690, size: 50, ko: PM.defaultKo(false, 6) },
     // Layers panel state: lock = fixed in place; move / color = link group ('' or 'A'..'D')

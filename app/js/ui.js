@@ -663,10 +663,11 @@
     if (t.source === 'Wikipedia') t = await PM.sources.wikiDetails(t); // logo, colors, league, years from the team's page
     if (!base) { base = PM.auto.baseFor(t, st.autoTpl); if (st.d.template === base.template) base.stripes.order = st.d.stripes.order; }
     toast('Building ' + t.name + '…', 6000);
-    const d = await PM.auto.fromTeam(t, base, {});
+    const d = await PM.auto.fromTeam(t, base, { wordmark: st.useWordmark !== false });
     st.lastTeam = t;
     replaceDesign(d);
-    toast(t.name + (t.eraLabel ? ` (${t.eraLabel} logo)` : '') + ' ready' + (d.mark.src ? '' : ' — no logo found, add one under Primary mark'), 3600);
+    toast(t.name + (t.eraLabel ? ` (${t.eraLabel} logo)` : '') + ' ready' + (d.line2.autoImg ? ` with the team's wordmark (${d.line2.imgFrom})` : '') +
+      (d.mark.src ? '' : ' — no logo found, add one under Primary mark'), 4200);
   }
 
   function buildAuto(p) {
@@ -675,6 +676,11 @@
       h('p', { class: 'lead' }, 'Pick a team. Colors, logo, league stamps and wordmark are filled in for you.'),
       h('div', { class: 'card' }, h('h3', {}, 'Find a team'), teamSearch((t) => pickTeam(t)),
         h('div', { class: 'row', style: 'margin-top:10px' }, h('span', {}, 'Background'), cTplChoice()),
+        h('label', { class: 'row', style: 'margin-top:6px;gap:8px;justify-content:flex-start' }, (() => {
+          const c = h('input', { type: 'checkbox', checked: st.useWordmark !== false });
+          c.addEventListener('change', () => { st.useWordmark = c.checked; });
+          return c;
+        })(), h('span', {}, "Use the team's own wordmark when one is found (instead of a font)")),
         h('div', { class: 'row', style: 'margin-top:6px' }, h('span', {}, 'Logo era'), cEra())),
     );
     if (st.lastTeam && st.lastTeam.eras && st.lastTeam.eras.length > 1) {

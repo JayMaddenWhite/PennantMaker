@@ -65,6 +65,7 @@ window.PM = window.PM || {};
 
   // Wordmark style presets — each mirrors one of the reference pennants.
   C.STYLES = {
+    classic: { label: 'Clean felt letters (default)', l1Font: 'Oswald Medium', l2Font: 'Bebas Neue' },
     block: { label: 'Block (Miss State)', l1Font: 'Oswald', l2Font: 'Graduate' },
     outline: { label: 'Hollow outline (Seahawks)', l1Font: 'Alfa Slab One', l2Font: 'Alfa Slab One' },
     script: { label: 'Script w/ tail (Hartfield)', l1Font: 'Oswald', l2Font: 'Yellowtail' },
@@ -97,7 +98,7 @@ window.PM = window.PM || {};
     const l1 = d.line1, l2 = d.line2;
     l1.font = st.l1Font; l2.font = st.l2Font;
     l1.fill = textColor; l1.o1 = { color: F, w: 0 }; l1.o2 = { color: P, w: 0 }; l1.shadow.on = false;
-    l2.tail = false; l2.rotate = 0; l1.rotate = 0; l1.letterSpacing = 0;
+    l2.tail = false; l2.rotate = 0; l1.rotate = 0; l1.letterSpacing = 0; l2.letterSpacing = 0;
     if (style === 'block') {
       l2.fill = textColor; l2.o1 = { color: F, w: 6 }; l2.o2 = { color: textColor, w: 3 };
       l1.fill = textColor === P ? (C.contrast(S, F) > 3 ? S : '#1b1b1b') : P;
@@ -128,6 +129,12 @@ window.PM = window.PM || {};
     }
     else if (style === 'split') {
       l2.fill = F; l2.o1 = { color: F, w: 0 }; l2.o2 = { color: C.darken(P, 0.35), w: 4 }; l2.shadow.on = false; l1.fill = F; l1.o2 = { color: C.darken(P, 0.35), w: 3 };
+    }
+    else if (style === 'classic') {
+      // tall, clean letters with one thin accent edge: reads like cut felt without the heavy block look
+      const acc = textColor === P ? S : P;
+      l2.fill = textColor; l2.o1 = { color: F, w: 0 }; l2.o2 = { color: acc, w: C.contrast(acc, F) >= 1.3 && acc !== textColor ? 3 : 0 }; l2.shadow.on = false;
+      l1.fill = textColor; l1.letterSpacing = 6; l2.letterSpacing = 4;
     }
     else if (style === 'hockey') {
       l2.fill = textColor; l2.o1 = { color: F, w: 0 }; l2.o2 = { color: P, w: 0 }; l2.shadow.on = false; l1.fill = textColor;

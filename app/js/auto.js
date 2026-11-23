@@ -38,8 +38,53 @@ window.PM = window.PM || {};
       field: d.field.color || PM.DEFAULT_FIELD,
     }, logoColors);
     PM.colors.applyPalette(d, pal, opts.style || d.wordStyle);
+    if (opts.wordmark !== false && !PM.isLocked(d, 'line2')) await A.useWordmark(d, team);
     A.layoutText(d);
     return d;
+  };
+
+  // Image facts: aspect ratio + average color of the inked pixels.
+  const inkOf = (data) => new Promise((res) => {
+    const img = new Image();
+    img.onload = () => {
+      const w = Math.min(300, img.naturalWidth), h = Math.round(img.naturalHeight * w / img.naturalWidth) || 1;
+      const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+      const cx = cv.getContext('2d'); cx.drawImage(img, 0, 0, w, h);
+      const px = cx.getImageData(0, 0, w, h).data; let r = 0, g = 0, b = 0, n = 0;
+      for (let i = 0; i < px.length; i += 4) if (px[i + 3] > 128) { r += px[i]; g += px[i + 1]; b += px[i + 2]; n++; }
+      res({ ar: img.naturalWidth / img.naturalHeight, ink: n ? PM.colors.hex(r / n, g / n, b / n) : null, cover: n / (w * h) });
+    };
+    img.onerror = () => res(null);
+    img.src = data;
+  });
+  // The team's real wordmark goes in the big line when one is found and reads on the felt; otherwise the font.
+  A.useWordmark = async (d, team) => {
+    const l2 = d.line2;
+    const wasAuto = l2.autoImg;
+    let found = null;
+    for (const c of await PM.sources.wordmarks(team, team.eraLabel ? parseInt(team.eraLabel, 10) : 0).catch(() => [])) {
+      try {
+        const data = await PM.sources.imageData(c.url);
+        const f = await inkOf(data);
+        if (!f || !f.ink || f.ar < 1.5 || f.cover < 0.04) continue;            // not lettering-shaped / empty
+        // colour behind the lettering: the felt, or the pattern on full-colour backgrounds (Gridiron, Split)
+        const behind = d.template === 'gridiron' ? d.grid.field : d.template === 'split' ? d.split.top : d.field.color;
+        const C = PM.colors;
+        if (C.contrast(f.ink, behind) >= 1.6) { found = { data, ar: f.ar, from: c.from, ko: false }; break; }
+        // dark lettering on a dark field: cut it out with a felt-coloured edge, if the felt itself reads against it
+        if (behind !== d.field.color && C.contrast(f.ink, d.field.color) >= 1.6) { found = { data, ar: f.ar, from: c.from, ko: true }; break; }
+      } catch {}
+    }
+    if (found) {
+      Object.assign(l2, { show: true, useImg: true, img: found.data, imgAR: found.ar, imgScale: 1.15, autoImg: true, imgFrom: found.from });
+      l2.ko = Object.assign({}, l2.ko, { on: found.ko, shape: 'outline', w: 5, color: d.field.color });
+      d.line1.show = false; // the wordmark already carries the name
+    } else if (wasAuto) {
+      Object.assign(l2, { useImg: false, img: null, autoImg: false, imgFrom: null });
+      if (l2.ko) l2.ko.on = false;
+      d.line1.show = true;
+    }
+    return !!found;
   };
 
   // Vintage: swap in the logo the team used in `year` (from Logopedia), and optionally the name it had then.
@@ -65,10 +110,11 @@ window.PM = window.PM || {};
     for (const [k, x, y, size] of keep) Object.assign(d[k], { x, y, size });
   };
   A._layout = (d, L) => {
-    const has1 = !!d.line1.text;
+    const has1 = d.line1.show !== false && !!d.line1.text;
     if (!has1) { d.line2.y = L.soloY; } else { d.line1.y = L.l1y; d.line2.y = L.l2y; }
     d.line2.size = L.size2;
     if (d.wordStyle === 'gothic') d.line2.size = Math.round(L.size2 * 1.3); // narrow letters can stand taller
+    if (d.wordStyle === 'classic') d.line2.size = Math.round(L.size2 * 1.05);
     // keep a gap between the small top line and the big line (tall fonts reach higher)
     if (has1) {
       const cap = 0.76 * PM.fitSize(d.line2), gap = 18;
