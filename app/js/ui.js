@@ -186,6 +186,22 @@
   });
   window.addEventListener('pointerup', () => { if (drag && drag.moved) syncInputs(); drag = null; });
 
+  // Bring a section's title to the top of the controls: right under the yellow line on a computer,
+  // right under the pinned header and preview on a phone.
+  function scrollSecTop(dt) {
+    const panel = $('.panel');
+    const ov = getComputedStyle(panel).overflowY;
+    if (ov === 'auto' || ov === 'scroll') {
+      const top = panel.scrollTop + dt.getBoundingClientRect().top - panel.getBoundingClientRect().top - 10;
+      panel.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+    } else {
+      // pinned (sticky) parts cover the top of the page once they stick: header, then the preview
+      const cover = ['.top', '.stage'].map((q) => document.querySelector(q)).filter(Boolean)
+        .filter((el) => getComputedStyle(el).position === 'sticky')
+        .reduce((m, el) => Math.max(m, (parseFloat(getComputedStyle(el).top) || 0) + el.offsetHeight), 0);
+      window.scrollTo({ top: Math.max(0, window.scrollY + dt.getBoundingClientRect().top - cover - 8), behavior: 'smooth' });
+    }
+  }
   function select(part) {
     st.sel = part;
     if (part && st.mode === 'auto') { setMode('manual'); return; }
@@ -196,11 +212,14 @@
     }
     if (st.mode === 'manual') {
       const sec = PART_SEC[part];
+      let target = null;
       document.querySelectorAll('details.sec').forEach((dt) => {
         const on = dt.dataset.sec === sec;
         dt.classList.toggle('hl', on);
-        if (on) { dt.open = true; dt.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+        if (on) { dt.open = true; target = dt; }
+        else if (dt.dataset.sec !== 'layers' && part) dt.open = false; // only the picked part stays open
       });
+      if (target) scrollSecTop(target);
     }
     queueRender();
   }
@@ -735,13 +754,33 @@
 
   const ORDER = ['layers', 'palette', 'field', 'spine', 'ties', 'pattern', 'stamps', 'mark', 'line1', 'line2', 'years', 'extra', 'maker'];
 
+  // Long sections fold into subsections (Outlines, Knockout, Effects, Position…), each with its own
+  // triangle. They start open on a computer and closed on a phone; whatever you open or close is remembered.
+  const phone = () => window.matchMedia('(max-width: 860px)').matches;
+  function foldSubs(key, items) {
+    st.subOpen = st.subOpen || {};
+    const out = []; let grp = null;
+    for (const el of [items].flat(Infinity)) {
+      if (el == null || el === false) continue;
+      if (el.classList && el.classList.contains('sub')) { grp = { title: el.textContent, kids: [] }; out.push(grp); continue; }
+      (grp ? grp.kids : out).push(el);
+    }
+    return out.flatMap((g) => {
+      if (g.nodeType) return [g];
+      if (!g.kids.length) return [];
+      const id = key + '/' + g.title, open = st.subOpen[id] ?? !phone();
+      const dt = h('details', { class: 'subsec', open }, h('summary', {}, g.title), h('div', { class: 'sub-body' }, g.kids));
+      dt.addEventListener('toggle', () => { st.subOpen[id] = dt.open; });
+      return [dt];
+    });
+  }
   function secEl(key, open) {
     const s = SECTIONS[key];
     const body = h('div', { class: 'sec-body' });
     const dt = h('details', { class: 'sec' + (open ? ' hl' : ''), open }, h('summary', {}, typeof s.title === 'function' ? s.title() : s.title), body);
     dt.dataset.sec = key;
     let built = false;
-    const build = () => { if (!built) { body.append(...s.build()); built = true; } };
+    const build = () => { if (!built) { body.append(...foldSubs(key, s.build())); built = true; } };
     if (open) build();
     dt.addEventListener('toggle', () => { if (dt.open) build(); });
     return dt;
@@ -943,6 +982,7 @@
     p.append(h('h2', {}, 'Manual'), h('p', { class: 'lead' }, `Every part is editable. Click a part on the ${isB() ? 'banner' : 'pennant'} to jump to it.`));
     const selSec = PART_SEC[st.sel];
     ORDER.filter((k) => k !== 'years' || isB()).forEach((k) => p.append(secEl(k, k === selSec || k === 'layers')));
+    p.append(h('div', { class: 'scroll-pad' })); // room to bring even the last section up to the top
   }
 
   // ---------- BULK ----------

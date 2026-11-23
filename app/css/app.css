@@ -170,7 +170,7 @@ body { background: var(--monster-deep); }
 .panel { border-right: 3px solid var(--monster-deep); }
 /* scoreboard lettering */
 .brand, .brand span { color: var(--plate); font-family: var(--score); text-transform: uppercase; letter-spacing: .06em; }
-.panel h2, details.sec > summary, .card h3, .modes button, .seg button, button.primary, .lrow.lhead, .sub, .export-row label {
+.panel h2, details.sec > summary, .card h3, .modes button, .seg button, button.primary, .lrow.lhead, .sub, details.subsec > summary, .export-row label {
   font-family: var(--score); text-transform: uppercase; letter-spacing: .06em;
 }
 .panel h2 { color: var(--plate); font-size: 22px; }
@@ -268,3 +268,15 @@ select { max-width: 100%; }
 /* header wordmark (two-line script with the pennant) */
 .brand .wordmark { height: 58px; width: auto; display: block; margin: -8px 0; }
 @media (max-width: 860px) { .brand .wordmark { height: 40px; } }
+
+/* subsections inside a part (Outlines, Knockout, Effects, Position…): fold away with their own triangle */
+details.subsec { border-top: 1px dashed var(--line); margin-top: 2px; }
+details.subsec > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 8px 0 2px;
+  font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+details.subsec > summary::-webkit-details-marker { display: none; }
+details.subsec > summary::before { content: '▸'; transition: transform .15s; }
+details.subsec[open] > summary::before { transform: rotate(90deg); }
+details.subsec > .sub-body { display: flex; flex-direction: column; gap: 9px; padding-top: 8px; }
+@media (max-width: 860px) { details.subsec > summary { padding: 12px 0 6px; font-size: 12.5px; } }
+/* space under the last section so any section can be scrolled up to the top */
+.panel > .scroll-pad { height: 60vh; }
