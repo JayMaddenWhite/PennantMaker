@@ -519,6 +519,146 @@ window.PM = window.PM || {};
     }),
   });
 
+  // ================= Schedule and game-day posters =================
+  // One game per line. Accepts "date | vs | opponent | time", tab-separated rows copied from a schedule
+  // table, or plain lines like "Sep 5 vs Central 7:00 PM" / "9/12 @ North 7pm".
+  const DATE_RE = /^(?:(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?,?\s+)?(?:[a-z]{3,9}\.?\s+\d{1,2}(?:,?\s+\d{4})?|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?|\d{4}-\d{2}-\d{2})/i;
+  const TIME_RE = /^(?:\d{1,2}(?::\d{2})?\s*(?:[ap]\.?m\.?|[ap])?|tba|tbd|noon|[wlt]\s*,?\s*\d+\s*[-–]\s*\d+.*)$/i;
+  const haOf = (s) => (/^(@|at|away|a|road)$/i.test(String(s || '').trim()) ? '@' : 'vs');
+  const stripHa = (s) => String(s || '').replace(/^\s*(vs\.?|v\.?|@|at)\s+/i, '').trim();
+  PM.parseSchedule = (text) => String(text || '').split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !/^#/.test(l)).map((line) => {
+    let date = '', ha = 'vs', opp = '', time = '';
+    if (line.includes('|')) {
+      const p = line.split('|').map((x) => x.trim());
+      date = p[0] || '';
+      if (/^(vs\.?|v\.?|@|at|home|away|h|a)$/i.test(p[1] || '')) { ha = haOf(p[1].replace('.', '')); opp = p[2] || ''; time = p[3] || ''; }
+      else { opp = p[1] || ''; time = p[2] || ''; if (/^\s*(@|at)\s/i.test(opp)) ha = '@'; }
+    } else if (line.includes('\t')) {
+      const p = line.split('\t').map((x) => x.trim()).filter(Boolean);
+      date = p.find((x) => DATE_RE.test(x)) || '';
+      time = p.find((x) => x !== date && TIME_RE.test(x)) || '';
+      opp = p.find((x) => x !== date && x !== time && /[a-z]/i.test(x)) || '';
+      if (/^\s*(@|at)\s/i.test(opp)) ha = '@';
+      if (/^(@|at|away)$/i.test(p.find((x) => /^(@|at|away|home|vs\.?)$/i.test(x)) || '')) ha = '@';
+    } else {
+      const m = line.match(/^(.*?\d[\d\/,\s]*?)\s+(vs\.?|v\.?|@|at)\s+(.+?)(?:\s+(\d{1,2}(?::\d{2})?\s*[ap]\.?m\.?|\d{1,2}:\d{2}|tba|tbd|noon))?$/i);
+      if (m) { date = m[1].trim(); ha = haOf(m[2].replace('.', '')); opp = m[3]; time = m[4] || ''; }
+      else opp = line;
+    }
+    opp = stripHa(opp);
+    // a final score typed after the opponent ("Eastside W 21-14") becomes the right-hand column
+    const res = opp.match(/\s+([WLT]\s*,?\s*\d+\s*[-–]\s*\d+.*)$/i);
+    if (res && !time) { time = res[1]; opp = opp.slice(0, res.index).trim(); }
+    return { date: date.replace(/,(?=\s*[a-z])/i, ''), ha, opp, time: time.toUpperCase().replace(/\s+/g, ' '), home: ha === 'vs' };
+  });
+  // the table on a schedule poster
+  const schedTable = (d, box) => {
+    const S = d.sched || {}, games = PM.parseSchedule(S.text), fd = PM.fontDef(S.font || 'Oswald');
+    const ink = '#1b1b1b', soft = '#5b5650', tint = (d.pst && d.pst.bandColor) || '#1d3f8f';
+    let s = `<g data-part="sched"><rect x="${box.x}" y="${box.y}" width="${box.w}" height="${box.h}" rx="10" fill="${(d.pst && d.pst.panel) || '#f7f2e6'}"/>`;
+    const txt = (x, y, size, str, anchor = 'start', fill = ink, maxW = 0) => {
+      const t = { font: S.font || 'Oswald', text: str, letterSpacing: 0, size };
+      const w = maxW ? PM.measure(t, size) : 0;
+      const squeeze = maxW && w > maxW ? ` textLength="${maxW.toFixed(1)}" lengthAdjust="spacingAndGlyphs"` : '';
+      return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" font-family="${esc(fd.family)}" font-weight="${fd.weight}" font-size="${size.toFixed(1)}" fill="${fill}"${squeeze}>${esc(str)}</text>`;
+    };
+    if (!games.length) {
+      return s + txt(box.x + box.w / 2, box.y + box.h / 2 - 20, 44, 'ADD THE SCHEDULE', 'middle', soft) +
+        txt(box.x + box.w / 2, box.y + box.h / 2 + 34, 28, 'Pick a team, import a calendar file, or paste it in', 'middle', soft) + `</g>`;
+    }
+    const n = games.length, cols = n <= 18 ? 1 : n <= 42 ? 2 : 3, per = Math.ceil(n / cols), pad = 22;
+    const colW = (box.w - 2 * pad) / cols, rowH = Math.min(cols === 1 ? 66 : 58, (box.h - 2 * pad) / per), fs = rowH * (cols === 3 ? 0.5 : 0.52);
+    games.forEach((g, i) => {
+      const c = Math.floor(i / per), r = i % per, x = box.x + pad + c * colW, y = box.y + pad + r * rowH, base = y + rowH * 0.68;
+      if (S.shade !== false && g.home) s += `<rect x="${(x + 2).toFixed(1)}" y="${(y + 2).toFixed(1)}" width="${(colW - 12).toFixed(1)}" height="${(rowH - 4).toFixed(1)}" rx="5" fill="${tint}" fill-opacity="0.14"/>`;
+      const dateW = colW * (cols === 1 ? 0.24 : 0.3), timeW = colW * (cols === 3 ? 0.2 : 0.2);
+      s += txt(x + 10, base, fs, (g.date || '').toUpperCase(), 'start', ink, dateW - 16);
+      let ox = x + dateW;
+      const logo = S.showLogos !== false && S.logos && S.logos[g.opp];
+      if (logo) { const ls = rowH * 0.78; s += `<image href="${logo}" x="${ox.toFixed(1)}" y="${(y + (rowH - ls) / 2).toFixed(1)}" width="${ls.toFixed(1)}" height="${ls.toFixed(1)}" preserveAspectRatio="xMidYMid meet"/>`; ox += ls + 8; }
+      s += txt(ox, base, fs * 0.78, g.ha === '@' ? '@' : 'VS', 'start', soft);
+      ox += fs * 1.25;
+      s += txt(ox, base, fs, (g.opp || '').toUpperCase(), 'start', ink, x + colW - timeW - 14 - ox);
+      if (g.time) s += txt(x + colW - 22, base, fs * 0.86, g.time, 'end', soft, timeW - 10);
+    });
+    return s + `</g>`;
+  };
+  Object.assign(PM.TEMPLATES, {
+    // Season schedule: team color, the logo and team name up top, every game on a paper panel
+    posterSchedule: Object.assign({}, PGEO, {
+      name: 'Schedule Poster',
+      noPhoto: true,
+      box: { x: 60, y: 400, w: 1080, h: 1290 },
+      pattern() { return ''; },
+      overlay(d, g) { return schedTable(d, g.box); },
+      defaults: pstDefaults({
+        pst: { keyOn: false, keyW: 0 },
+        line2: { x: 400, y: 200, size: 104, maxWidth: 740, align: 'start', show: true },
+        line1: { x: 400, y: 296, size: 58, maxWidth: 740, align: 'start', show: true },
+        extra: { x: 600, y: 1752, size: 30, maxWidth: 1080, align: 'middle', show: true },
+        mark: { show: true, x: 215, y: 210, size: 290 },
+        stamps: { x: 1040, y: 1752, items: [{ show: false, size: 50 }, { show: false, size: 50 }] },
+      }),
+      field: '#1d3f8f', layout: null,
+      palette(d, p) {
+        const C = PM.colors, F = p.primary;
+        const head = C.contrast('#ffffff', F) >= 2.2 ? '#ffffff' : '#141414';
+        const accent = [p.secondary, p.tertiary, '#f2c230', head].find((c) => c && C.contrast(c, F) >= 2.2);
+        d.field.color = F; Object.assign(d.pst, { bandColor: F, bandColor2: accent, panel: '#f7f2e6' });
+        pstText(d.line2, { font: 'Jost Bold', fill: head, caps: true, letterSpacing: 2 });
+        pstText(d.line1, { font: 'Jost Medium', fill: accent, caps: true, letterSpacing: 4 });
+        pstText(d.extra, { font: 'Jost Medium', fill: accent, caps: true, letterSpacing: 2 });
+        d.mark.knockout.on = false; d.mark.ring.on = false; d.stamps.ko.on = false;
+      },
+    }),
+    // Game day: a big photo, GAME DAY across the middle, our logo VS theirs, then the date and place
+    posterGameDay: Object.assign({}, PGEO, {
+      name: 'Game Day Poster',
+      box: { x: 0, y: 0, w: 1200, h: 1090 },
+      pattern() { return ''; },
+      overlay(d) {
+        const G = d.game || {}, a = d.pst.bandColor2 || '#ffffff', fd = PM.fontDef(d.line1.font || 'Jost Bold');
+        const t = (x, y, size, str, fill) => `<text x="${x}" y="${y}" text-anchor="middle" font-family="${esc(fd.family)}" font-weight="${fd.weight}" font-size="${size}" fill="${fill}" letter-spacing="2">${esc(String(str || '').toUpperCase())}</text>`;
+        let s = `<g data-part="band"><rect x="0" y="1090" width="1200" height="16" fill="${a}"/></g>`;
+        s += `<g data-part="game">${t(600, 1528, 92, G.ha === '@' ? '@' : 'VS', a)}`;
+        // both logos sit on matching discs, so a red logo still reads on a red poster
+        if (G.oppLogo) s += `<circle cx="870" cy="1490" r="124" fill="${d.pst.disc || '#ffffff'}"/><image href="${G.oppLogo}" x="780" y="1400" width="180" height="180" preserveAspectRatio="xMidYMid meet"/>`;
+        else s += `<circle cx="870" cy="1490" r="100" fill="none" stroke="${a}" stroke-width="5" stroke-dasharray="14 10"/>` + t(870, 1502, 30, 'Opponent', a);
+        if (G.us) s += t(330, 1640, 34, G.us, d.line1.fill);
+        if (G.opp) s += t(870, 1640, 34, G.opp, d.line1.fill);
+        return s + `</g>`;
+      },
+      defaults: pstDefaults({
+        pst: { keyOn: false, keyW: 0 },
+        line2: { x: 600, y: 1290, size: 176, maxWidth: 1100, align: 'middle', show: true },
+        line1: { x: 600, y: 1712, size: 56, maxWidth: 1100, align: 'middle', show: true },
+        extra: { x: 600, y: 1768, size: 32, maxWidth: 1100, align: 'middle', show: true },
+        mark: { show: true, x: 330, y: 1490, size: 210 },
+        stamps: { x: 60, y: 1760, items: [{ show: false, size: 50 }, { show: false, size: 50 }] },
+      }),
+      field: '#1d3f8f', layout: null,
+      palette(d, p) {
+        const C = PM.colors, F = p.primary;
+        const head = C.contrast('#ffffff', F) >= 2.2 ? '#ffffff' : '#141414';
+        const accent = [p.secondary, p.tertiary, '#f2c230', head].find((c) => c && C.contrast(c, F) >= 2.2);
+        d.field.color = F; Object.assign(d.pst, { bandColor: F, bandColor2: accent });
+        d.pst.disc = '#ffffff';
+        if (d.mark) { d.mark.size = 180; d.mark.knockout = { on: true, shape: 'circle', color: '#ffffff', w: 22, radius: 18 }; }
+        pstText(d.line2, { font: 'Anton', fill: head, caps: true, letterSpacing: 6 });
+        pstText(d.line1, { font: 'Jost Bold', fill: head, caps: true, letterSpacing: 3 });
+        pstText(d.extra, { font: 'Jost Medium', fill: accent, caps: true, letterSpacing: 2 });
+        d.mark.knockout.on = false; d.mark.ring.on = false; d.stamps.ko.on = false;
+      },
+    }),
+  });
+  // Fonts drawn outside the three lettering lines (the schedule table, game-day names), for loading and export.
+  PM.extraFontParts = (d) => {
+    const t = PM.TEMPLATES[d && d.template] || {};
+    if (d.template === 'posterSchedule') return [{ font: (d.sched && d.sched.font) || 'Oswald', text: 'SEP 12 VS @ 7:00 PM ABCDEFGHIJKLMNOPQRSTUVWXYZ', show: true }];
+    if (d.template === 'posterGameDay') return [{ font: d.line1.font, text: 'VS @ ABCDEFGHIJKLMNOPQRSTUVWXYZ', show: true }];
+    return t ? [] : [];
+  };
+
   // ================= Trading cards =================
   // 2.5 x 3.5 in cards (5:7). Same parts as a poster: photo, name (line 2), position (line 1), team name (extra),
   // team logo (mark), a small league logo (stamps), and a set logo of your own (maker's mark).
@@ -791,6 +931,10 @@ window.PM = window.PM || {};
     // posters: the photo (data URL), its aspect, zoom and focus point (0..1), keyline round the photo
     pst: { photo: null, photoAR: 0, zoom: 1, fx: 0.5, fy: 0.5, keyOn: true, keyColor: '#f2c230', keyW: 5,
       bandColor: '#c8102e', bandColor2: '#ffffff', paperA: '#8a5a32', paperB: '#3d2410', logoCorner: 'off' },
+    // schedule posters: one game per line ("Tue Oct 21 | @ | Magic | 7:00 PM"), opponent logos by name
+    sched: { text: '', font: 'Oswald', showLogos: true, shade: true, logos: {} },
+    // game-day posters: the opponent, home (vs) or away (@), and our short name under our logo
+    game: { opp: '', oppLogo: null, ha: 'vs', us: '' },
     // stacking order of the parts on the felt, bottom to top (see PM.stackOf)
     stack: ['stamps', 'mark', 'extra', 'line2', 'line1', 'years', 'maker'],
   });
@@ -1194,6 +1338,7 @@ window.PM = window.PM || {};
     const t = g.t, b = g.box, p = d.pst || {}; let s = '';
     if (has('field')) s += `<g data-part="field"><rect x="0" y="0" width="${t.W}" height="${t.H}" fill="${d.field.color}"/>${t.paper ? t.paper(d, g) : ''}</g>`;
     const shape = PM.photoPath(t, b);
+    if (has('stripes') && t.noPhoto) { if (t.overlay) s += t.overlay(d, g); return s; }
     if (has('stripes')) {
       s += `<defs><clipPath id="pstClip"><path d="${shape}"/></clipPath></defs><g data-part="photo">`;
       if (p.photo) {

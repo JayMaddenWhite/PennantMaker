@@ -95,6 +95,63 @@ window.PM = window.PM || {};
     return teams;
   };
 
+  // ---------- Schedules ----------
+  // A team's season from ESPN's public schedule feed: one line per game plus each opponent's logo.
+  S.espnSchedule = async (team) => {
+    const L = team && S.ESPN.find((l) => l.id === team.leagueId);
+    if (!L || !team.espnId) throw new Error('Schedules load for ESPN teams (pro leagues and major colleges). For others, import a calendar file or paste the schedule.');
+    const base = `https://site.api.espn.com/apis/site/v2/sports/${L.sport}/${L.league}/teams/${team.espnId}/schedule`;
+    let j = await S.json(base);
+    if (L.sport === 'football') { try { const r = await S.json(base + '?seasontype=2'); if ((r.events || []).length) j = r; } catch {} }
+    const lines = [], logos = {};
+    for (const e of j.events || []) {
+      const c = e.competitions && e.competitions[0]; if (!c) continue;
+      const us = c.competitors.find((x) => String(x.team.id) === String(team.espnId)), them = c.competitors.find((x) => x !== us);
+      if (!us || !them) continue;
+      const dt = new Date(e.date);
+      const date = dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).replace(',', '');
+      const time = e.timeValid === false ? 'TBA' : dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      const opp = them.team.shortDisplayName || them.team.displayName || them.team.name;
+      const logo = (them.team.logos && them.team.logos[0] && them.team.logos[0].href) || them.team.logo;
+      if (logo) logos[opp] = logo;
+      lines.push(`${date} | ${us.homeAway === 'home' ? 'vs' : '@'} | ${opp} | ${time}`);
+    }
+    if (!lines.length) throw new Error('ESPN has no games listed for this team yet.');
+    return { lines, logos, season: (j.season && j.season.displayName) || '' };
+  };
+  // Small logo (ESPN can resize its own) as a data URL, so a whole season of logos stays light.
+  S.smallLogo = async (url) => {
+    let u = url;
+    try { const x = new URL(url); if (/espncdn\.com$/.test(x.hostname) && !/combiner/.test(x.pathname)) u = `https://a.espncdn.com/combiner/i?img=${x.pathname}&w=96&h=96`; } catch {}
+    return S.imageData(u);
+  };
+  // A calendar file (.ics, as schedule sites export) → schedule lines. teamName is dropped from titles.
+  S.icsSchedule = (text, teamName = '') => {
+    const raw = String(text || '').replace(/\r?\n[ \t]/g, '');            // unfold long lines
+    const evs = raw.split(/BEGIN:VEVENT/).slice(1).map((b) => b.split(/END:VEVENT/)[0]);
+    const field = (b, k) => { const m = b.match(new RegExp('^' + k + '(?:;[^:\\n]*)?:(.*)$', 'mi')); return m ? m[1].trim().replace(/\\,/g, ',').replace(/\\n/g, ' ') : ''; };
+    const when = (v) => {
+      const m = v.match(/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})?(Z)?)?/); if (!m) return null;
+      const [, y, mo, dd, hh, mi, , z] = m;
+      if (!hh) return { dt: new Date(+y, +mo - 1, +dd), allDay: true };
+      return { dt: z ? new Date(Date.UTC(+y, +mo - 1, +dd, +hh, +mi)) : new Date(+y, +mo - 1, +dd, +hh, +mi), allDay: false };
+    };
+    const name = String(teamName || '').trim().toLowerCase();
+    return evs.map((b) => {
+      const w = when(field(b, 'DTSTART')); if (!w) return null;
+      let s = field(b, 'SUMMARY'), ha = 'vs', opp = s;
+      const vs = s.match(/\b(?:vs\.?|v\.?)\s+(.+)$/i), at = s.match(/(?:@|\bat\b)\s+(.+)$/i);
+      // "Lincoln at Our Team" is a home game against Lincoln
+      if (at && name && at[1].toLowerCase().includes(name)) { opp = s.slice(0, at.index).trim(); }
+      else if (at && (!vs || at.index > vs.index)) { ha = '@'; opp = at[1]; } else if (vs) opp = vs[1];
+      else if (name && s.toLowerCase().includes(name)) opp = s.replace(new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), '').replace(/^[\s\-–:]+|[\s\-–:]+$/g, '');
+      opp = opp.replace(/\s*[-–(].*$/, '').trim() || s;
+      const date = w.dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).replace(',', '');
+      const time = w.allDay ? 'TBA' : w.dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      return { t: w.dt.getTime(), line: `${date} | ${ha} | ${opp} | ${time}` };
+    }).filter(Boolean).sort((a, b) => a.t - b.t).map((x) => x.line);
+  };
+
   // ---------- TheSportsDB ----------
   S.tsdbKey = () => localStorage.getItem('pm_tsdb_key') || '123';
   S.tsdb = (path) => S.json(`https://www.thesportsdb.com/api/v1/json/${S.tsdbKey()}/${path}`);

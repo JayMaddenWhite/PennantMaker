@@ -18,7 +18,7 @@ window.PM = window.PM || {};
 
   const loaded = new Set();
   PM.ensureFonts = async (d) => {
-    const need = [d.line1, d.line2, d.extra].filter((t) => t.show && t.text).map((t) => t);
+    const need = [d.line1, d.line2, d.extra, ...(PM.extraFontParts ? PM.extraFontParts(d) : [])].filter((t) => t.show && t.text).map((t) => t);
     await Promise.all(need.map((t) => {
       const key = PM.fontCss(t, 40);
       if (loaded.has(key)) return null;
@@ -32,7 +32,7 @@ window.PM = window.PM || {};
   // Returns @font-face CSS with the font files inlined as data URLs, filtered to the
   // unicode-range subsets actually needed (latin) to keep files small.
   PM.embedFonts = async (d) => {
-    const fams = [...new Set([d.line1, d.line2, d.extra].filter((t) => t.show && t.text).map((t) => PM.fontDef(t.font).family))];
+    const fams = [...new Set([d.line1, d.line2, d.extra, ...(PM.extraFontParts ? PM.extraFontParts(d) : [])].filter((t) => t.show && t.text).map((t) => PM.fontDef(t.font).family))];
     const parts = await Promise.all(fams.map(async (f) => {
       if (embedCache[f]) return embedCache[f];
       try {

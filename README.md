@@ -111,3 +111,10 @@ A fourth product behind the **Card** switch: 2.5 x 3.5 in cards (5:7) using the 
 - **Clean White (late-80s premium):** white border, a thin team line round the photo, a team-color name bar.
 
 Print sizes: trading card (2.5 x 3.5 in), jumbo (5 x 7 in) and display (7.5 x 10.5 in), each with bleed and a cut line.
+
+### Schedule and game-day posters
+
+Two more poster styles:
+
+- **Schedule Poster:** team color, the logo and team name up top, a season line, and every game on a paper panel (date, VS or @, opponent with their logo, time), with home games shaded. One column for short seasons, up to three for 80+ games. Picking a pro or major college team loads its season from ESPN's public schedule feed with opponent logos. Any other team: **Import calendar file (.ics)** (the export most schedule sites offer) or paste the schedule, one game per line: `Fri Sep 5 | vs | Central | 7:00 PM`, `Sep 12 @ North 7pm`, or rows copied from a schedule table. A score after the opponent (`W 21-14`) shows in the right-hand column.
+- **Game Day Poster:** a big photo, GAME DAY, your logo VS (or @) theirs on matching discs, the date and time, and the place. Pick any game from a loaded schedule to fill it in, or type the opponent and use Find for their logo.

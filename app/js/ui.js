@@ -36,6 +36,10 @@
   const isB = () => PM.isBanner(st.d);
   const isP = () => PM.isPoster(st.d);      // posters and cards (paper with a photo)
   const isC = () => PM.isCard(st.d);
+  const isSched = () => st.d.template === 'posterSchedule';
+  const isGame = () => st.d.template === 'posterGameDay';
+  const SCHED_NAMES = { line2: 'Team name', line1: 'Season line', extra: 'Footer note', mark: 'Team logo', stamps: 'Corner logos', field: 'Background & schedule' };
+  const GAME_NAMES = { line2: 'Headline', line1: 'Date & time', extra: 'Place', mark: 'Team logo', stamps: 'Corner logos', field: 'Background & photo' };
   const CARD_NAMES = { line2: 'Name', line1: 'Position', extra: 'Team name', mark: 'Team logo', stamps: 'League logo', maker: 'Set logo', field: 'Border & photo' };
   st.poster = st.poster || { player: '', signature: '', caption: '' };
   // what each part is called on a poster
@@ -195,7 +199,7 @@
   }
 
   // ---------- click & drag on the preview ----------
-  const PART_SEC = { photo: 'photo', band: 'field', field: 'field', spine: 'spine', stitch: 'spine', ties: 'ties', tieTop: 'ties', tieBottom: 'ties', pattern: 'pattern', stripes: 'pattern', stamps: 'stamps', stamp1: 'stamps', stamp2: 'stamps', mark: 'mark', line1: 'line1', line2: 'line2', extra: 'extra', maker: 'maker', years: 'years' };
+  const PART_SEC = { sched: 'schedule', game: 'game', photo: 'photo', band: 'field', field: 'field', spine: 'spine', stitch: 'spine', ties: 'ties', tieTop: 'ties', tieBottom: 'ties', pattern: 'pattern', stripes: 'pattern', stamps: 'stamps', stamp1: 'stamps', stamp2: 'stamps', mark: 'mark', line1: 'line1', line2: 'line2', extra: 'extra', maker: 'maker', years: 'years' };
   const DRAG = { mark: 'mark', line1: 'line1', line2: 'line2', extra: 'extra', years: 'years', stamp1: 'stamps', stamp2: 'stamps', stamps: 'stamps', maker: 'maker' };
   let drag = null;
   function onStageDown(e) {
@@ -291,7 +295,7 @@
   // shadow, slant, spacing, knockout. Size, width and position stay with each line.
   const STYLE_KEYS = ['font', 'caps', 'smallCaps', 'fill', 'o1', 'o2', 'shadow', 'italic', 'letterSpacing', 'slant', 'tail', 'ko'];
   const grabStyle = (t) => clone(Object.fromEntries(STYLE_KEYS.filter((k) => t[k] !== undefined).map((k) => [k, t[k]])));
-  const TEXT_PARTS = () => (isC() ? [['line2', 'Name'], ['line1', 'Position'], ['extra', 'Team name']] : isP() ? [['line2', 'Name'], ['extra', 'Signature'], ['line1', 'Caption']]
+  const TEXT_PARTS = () => (isSched() ? [['line2', 'Team name'], ['line1', 'Season line'], ['extra', 'Footer note']] : isGame() ? [['line2', 'Headline'], ['line1', 'Date & time'], ['extra', 'Place']] : isC() ? [['line2', 'Name'], ['line1', 'Position'], ['extra', 'Team name']] : isP() ? [['line2', 'Name'], ['extra', 'Signature'], ['line1', 'Caption']]
     : [['line1', isB() ? 'Top line' : 'Line 1 (small)'], ['line2', isB() ? 'Big line' : 'Line 2 (big)'],
       ['extra', isB() ? 'Team name line' : 'Extra text'], ...(isB() ? [['years', 'Years']] : [])]);
   const partName = (k) => (TEXT_PARTS().find(([v]) => v === k) || [k, k])[1];
@@ -406,7 +410,11 @@
   // Background (template) switcher: re-lays out and recolors the current design.
   function cTemplate() {
     const sel = h('select', {}, PM.templatesFor(PM.productOf(st.d)).map(([k, v]) => h('option', { value: k, selected: st.d.template === k }, v.name)));
-    sel.addEventListener('change', () => { const d = PM.setTemplate(clone(st.d), sel.value); PM.auto.layoutText(d); replaceDesign(d); toast(PM.TEMPLATES[sel.value].name); });
+    sel.addEventListener('change', () => {
+      const d = PM.setTemplate(clone(st.d), sel.value); PM.auto.layoutText(d);
+      if (sel.value === 'posterSchedule' || sel.value === 'posterGameDay') PM.auto.posterText(d, st.lastTeam, posterOpts());
+      replaceDesign(d); toast(PM.TEMPLATES[sel.value].name);
+    });
     return sel;
   }
   // Current vs vintage logos (by year). Vintage also finds defunct teams and takes colors from that logo.
@@ -755,9 +763,11 @@
         st.d.template === 'hockey' ? h('p', { class: 'fine', style: 'margin:0' }, 'The circle ring around the logo on Vintage Hockey is the medallion ring: Wedges, center stripe & medallion → Ring color.') : null,
       ],
     },
-    line1: { title: () => (isC() ? 'Position' : isP() ? 'Caption (team, position)' : isB() ? 'Title – top line (e.g. WORLD SERIES)' : 'Wordmark – line 1 (small)'), build: textSec('line1') },
-    line2: { title: () => (isP() ? 'Name' : isB() ? 'Title – big line (CHAMPIONS)' : 'Wordmark – line 2 (big)'), build: textSec('line2') },
-    extra: { title: () => (isC() ? 'Team name' : isP() ? 'Signature' : isB() ? 'Team name line' : 'Extra text'), build: textSec('extra') },
+    line1: { title: () => (isSched() ? 'Season line (e.g. 2026 SCHEDULE)' : isGame() ? 'Date & time' : isC() ? 'Position' : isP() ? 'Caption (team, position)' : isB() ? 'Title – top line (e.g. WORLD SERIES)' : 'Wordmark – line 1 (small)'), build: textSec('line1') },
+    line2: { title: () => (isSched() ? 'Team name' : isGame() ? 'Headline (GAME DAY)' : isP() ? 'Name' : isB() ? 'Title – big line (CHAMPIONS)' : 'Wordmark – line 2 (big)'), build: textSec('line2') },
+    extra: { title: () => (isSched() ? 'Footer note' : isGame() ? 'Place' : isC() ? 'Team name' : isP() ? 'Signature' : isB() ? 'Team name line' : 'Extra text'), build: textSec('extra') },
+    schedule: { title: 'Schedule', build: () => schedRows() },
+    game: { title: 'Opponent & game', build: () => gameRows() },
     photo: {
       title: 'Photo', build: () => [
         row('Photo', cPhoto()),
@@ -819,7 +829,7 @@
     const wrap = h('div', { class: 'layers' + (edit ? ' editing' : ' locked') },
       h('div', { class: 'lyr-bar' }, h('span', { class: 'fine' }, edit ? 'Drag ⠿ to move a part above or below another.' : 'Locked down. Press Edit layers to change them.'), toggle),
       h('div', { class: 'lrow lhead' }, h('span', {}), h('span', {}, 'Layer'), h('span', { title: 'Show' }, 'Show'), h('span', { title: 'Lock in place' }, 'Lock'), h('span', { title: 'Layers with the same letter move together' }, 'Move'), h('span', { title: 'Layers with the same letter change colors together' }, 'Color')));
-    const label = (k) => (isC() && CARD_NAMES[k]) || (isP() && POSTER_NAMES[k]) || (PM.LAYERS_ALL.find(([q]) => q === k) || [k, k])[1];
+    const label = (k) => (isSched() && SCHED_NAMES[k]) || (isGame() && GAME_NAMES[k]) || (isC() && CARD_NAMES[k]) || (isP() && POSTER_NAMES[k]) || (PM.LAYERS_ALL.find(([q]) => q === k) || [k, k])[1];
     const isSel = (k) => st.sel && (PART_SEC[st.sel] === k || (k === 'pattern' && PART_SEC[st.sel] === 'pattern'));
     const rowFor = (k, stackable) => {
       const L = PM.layer(st.d, k), movable = PM.LAYER_KEYS.includes(k);
@@ -982,13 +992,18 @@
       let tpl = st.d.template;
       if (isC() && /^card(Wood|Parquet)$/.test(tpl)) tpl = PM.auto.templateFor(t) === 'hoops' ? 'cardParquet' : 'cardWood';
       base = PM.auto.posterBase(tpl, PM.productOf(st.d)); base.pst = clone(st.d.pst);
-      if (!isC()) { const m = st.d.mark; Object.assign(base.mark, { show: m.show, x: m.x, y: m.y, size: m.size, opacity: m.opacity }); }
+      if (!isC() && !isSched() && !isGame()) { const m = st.d.mark; Object.assign(base.mark, { show: m.show, x: m.x, y: m.y, size: m.size, opacity: m.opacity }); }
+      base.sched = clone(st.d.sched); base.game = clone(st.d.game);
+      if (isSched() || isGame()) { base.line1.text = st.d.line1.text; base.extra.text = st.d.extra.text; }
     }
     if (!base && isB()) base = PM.auto.bannerBase(st.autoTplB, st.d.bnr.shape);
     if (!base) { base = PM.auto.baseFor(t, st.autoTpl); if (st.d.template === base.template) base.stripes.order = st.d.stripes.order; }
     toast('Building ' + t.name + '…', 6000);
     const d = await PM.auto.fromTeam(t, base, { wordmark: st.useWordmark !== false, banner: bannerOpts(), poster: posterOpts() });
     st.lastTeam = t;
+    if (d.template === 'posterSchedule' && t.espnId) {
+      try { const n = await loadSchedule(t, d); toast(`${n} games loaded from ESPN`, 3000); } catch (e) { toast(e.message, 5000); }
+    }
     replaceDesign(d);
     toast(t.name + (t.eraLabel ? ` (${t.eraLabel} logo)` : '') + ' ready' + ((PM.isBanner(d) ? d.extra : d.line2).autoImg ? ` with the team's wordmark (${(PM.isBanner(d) ? d.extra : d.line2).imgFrom})` : '') +
       (d.mark.src ? '' : ' — no logo found, add one under Primary mark'), 4200);
@@ -1013,6 +1028,70 @@
     }
     logoToCorner(d, 'br'); d.mark.opacity = mode === 'faint' ? 0.35 : 1;
   }
+  // ---------- Schedules and game days ----------
+  async function loadSchedule(team, d = st.d) {
+    toast(`Getting the ${team.name} schedule from ESPN…`, 8000);
+    const r = await PM.sources.espnSchedule(team);
+    d.sched.text = r.lines.join('\n'); d.sched.logos = {};
+    const names = Object.keys(r.logos);
+    for (let i = 0; i < names.length; i += 6) {                     // a few logos at a time
+      await Promise.all(names.slice(i, i + 6).map(async (n) => { try { d.sched.logos[n] = await PM.sources.smallLogo(r.logos[n]); } catch {} }));
+    }
+    if (r.season) d.line1.text = `${r.season} Schedule`;
+    return r.lines.length;
+  }
+  // Turn one game into a game-day poster (keeps the team, colors, photo and schedule).
+  function makeGameDay(g) {
+    const d = PM.setTemplate(clone(st.d), 'posterGameDay');
+    Object.assign(d.game, { opp: g.opp, ha: g.ha, oppLogo: (st.d.sched.logos || {})[g.opp] || null, us: d.game.us || (st.lastTeam && (st.lastTeam.nickname || st.lastTeam.name)) || '' });
+    d.line2.text = 'Game Day'; d.line2.show = true; d.line2.useImg = false;
+    d.line1.text = [g.date, g.time].filter(Boolean).join(' · '); d.line1.show = true;
+    replaceDesign(d); toast(`Game day: ${g.ha === '@' ? 'at' : 'vs'} ${g.opp}`, 2600);
+  }
+  function gamePicker() {
+    const games = PM.parseSchedule(st.d.sched && st.d.sched.text);
+    if (!games.length) return null;
+    const sel = h('select', {}, games.map((g, i) => h('option', { value: i }, `${g.date}  ${g.ha === '@' ? '@' : 'vs'} ${g.opp}${g.time ? '  ' + g.time : ''}`)));
+    return row('Game-day poster', h('div', { class: 'col' }, sel, h('button', { class: 'swap', type: 'button', onclick: () => makeGameDay(games[+sel.value]) }, 'Make it')));
+  }
+  function schedRows() {
+    const ics = h('input', { type: 'file', accept: '.ics,text/calendar', hidden: true });
+    ics.addEventListener('change', async () => {
+      const f = ics.files[0]; if (!f) return;
+      const lines = PM.sources.icsSchedule(await f.text(), st.lastTeam ? st.lastTeam.name : st.d.line2.text);
+      ics.value = '';
+      if (!lines.length) { toast('No games found in that calendar file', 3500); return; }
+      change('sched.text', lines.join('\n')); buildPanel(); toast(`${lines.length} games imported`, 2600);
+    });
+    const ta = h('textarea', { rows: 9, value: st.d.sched.text || '', placeholder: 'One game per line, e.g.\nFri Sep 5 | vs | Central | 7:00 PM\nSep 12 @ North 7pm\n(or paste rows copied from a schedule table)' });
+    ta.addEventListener('input', () => change('sched.text', ta.value));
+    binders.push(() => { if (document.activeElement !== ta) ta.value = st.d.sched.text || ''; });
+    const t = st.lastTeam;
+    return [
+      h('div', { class: 'btns' },
+        t && t.espnId ? h('button', { class: 'primary', onclick: async () => { try { snapshot(true); const n = await loadSchedule(t); buildPanel(); queueRender(); toast(`${n} games loaded from ESPN`, 3000); } catch (e) { toast(e.message, 5000); } } }, `Get the ${t.nickname || t.name} schedule (ESPN)`) : null,
+        h('button', { onclick: () => ics.click() }, 'Import calendar file (.ics)'), ics),
+      row('Games', ta),
+      h('p', { class: 'fine', style: 'margin:0' }, t && t.espnId ? 'Edit any line. Home games (vs) are shaded.' : 'Pro and major college teams load from ESPN once you pick the team. For high school, youth and minor-league teams, use the calendar file most schedule sites (MaxPreps, team and league sites) offer, or copy the schedule table and paste it here.'),
+      gamePicker(),
+      row('Opponent logos', cCheck('sched.showLogos', 'Show them (when loaded from ESPN)')),
+      row('Shade home games', cCheck('sched.shade')),
+      row('Font', cFont('sched.font')),
+      row('Panel', cColor('pst.panel')), row('Shading color', cColor('pst.bandColor')),
+    ];
+  }
+  function gameRows() {
+    const txt = (path, ph, after) => { const i = h('input', { type: 'text', value: get(path) || '', placeholder: ph }); i.addEventListener('input', () => { change(path, i.value); if (after) after(i.value); }); return i; };
+    return [
+      row('Opponent', txt('game.opp', 'e.g. Central Wildcats')),
+      row('Their logo', cImage('game.oppLogo', 'team')),
+      row('Home or away', cSelect('game.ha', [['vs', 'Home (VS)'], ['@', 'Away (@)']])),
+      row('Your team', txt('game.us', 'Short name under your logo')),
+      row('Date & time', txt('line1.text', 'e.g. Fri Sep 5 · 7:00 PM', (v) => change('line1.show', !!v))),
+      row('Place', txt('extra.text', 'e.g. Memorial Stadium', (v) => change('extra.show', !!v))),
+      gamePicker(),
+    ];
+  }
   // Poster text the user typed in Automatic.
   function posterOpts() { return { player: st.poster.player || (isP() ? st.d.line2.text : ''), signature: st.poster.signature, caption: st.poster.caption }; }
   function posterCard() {
@@ -1023,6 +1102,10 @@
       return i;
     };
     const caption = () => [st.lastTeam && st.lastTeam.name, (st.poster.caption || '').trim()].filter(Boolean).join('  ·  ');
+    if (isSched()) return h('div', { class: 'card' }, h('h3', {}, 'Schedule poster'),
+      h('div', { class: 'sec-body', style: 'padding:0' }, row('Style', cTemplate()), ...schedRows()));
+    if (isGame()) return h('div', { class: 'card' }, h('h3', {}, 'Game day poster'),
+      h('div', { class: 'sec-body', style: 'padding:0' }, row('Style', cTemplate()), row('Photo', cPhoto()), ...gameRows()));
     if (isC()) return h('div', { class: 'card' }, h('h3', {}, 'Card'),
       h('div', { class: 'sec-body', style: 'padding:0' },
         row('Style', cTemplate()),
@@ -1064,7 +1147,7 @@
   function buildAuto(p) {
     p.append(
       h('h2', {}, 'Automatic'),
-      h('p', { class: 'lead' }, isC() ? 'Add a photo, a name and a position, then pick a team for its colors and logo.' : isP() ? 'Add a photo and a name, then pick a team for the colors and logos.' : isB() ? 'Pick a team for a championship banner. Colors, logo, league stamps and wordmark are filled in; add the title and years below.' : 'Pick a team. Colors, logo, league stamps and wordmark are filled in for you.'),
+      h('p', { class: 'lead' }, isSched() ? "Pick a team: its colors and logo fill in, and pro and major college schedules load from ESPN. Or import a calendar file or paste the schedule." : isGame() ? "Add a photo, pick your team, then set the opponent, date and place (or pick a game from a loaded schedule)." : isC() ? 'Add a photo, a name and a position, then pick a team for its colors and logo.' : isP() ? 'Add a photo and a name, then pick a team for the colors and logos.' : isB() ? 'Pick a team for a championship banner. Colors, logo, league stamps and wordmark are filled in; add the title and years below.' : 'Pick a team. Colors, logo, league stamps and wordmark are filled in for you.'),
       isP() ? posterCard() : isB() ? bannerCard() : null,
       h('div', { class: 'card' }, h('h3', {}, 'Find a team'), teamSearch((t) => pickTeam(t)),
         isP() ? null : h('div', { class: 'row', style: 'margin-top:10px' }, h('span', {}, 'Background'), cTplChoice()),
@@ -1182,7 +1265,20 @@
     { title: 'Logos', secs: ['mark', 'stamps', 'maker'], tip: 'The team logo, an optional league logo, and a set logo of your own (your team, league or tournament).' },
     { title: 'Finish', secs: [], finish: true, tip: 'Download it below the preview. Print PDF at Trading card size gives a real 2.5 x 3.5 in card with a cut line.' },
   ];
-  const stepsNow = () => (isC() ? CARD_STEPS : isP() ? POSTER_STEPS : isB() ? STEPS.map((x) => Object.assign({}, x, BANNER_STEP[x.title] || {})) : STEPS);
+  const SCHED_STEPS = [
+    { title: 'Team & colors', secs: ['field', 'palette'], team: true, tip: 'Look up the team: its colors and logo fill in, and pro and major college schedules load straight from ESPN.' },
+    { title: 'Schedule', secs: ['schedule'], tip: 'Import a calendar file (most school and league sites offer one) or paste the schedule, one game per line. Edit any line right in the box.' },
+    { title: 'Lettering', secs: ['line2', 'line1', 'extra'], tip: 'The team name, the season line under it, and a footer note.' },
+    { title: 'Logos', secs: ['mark', 'stamps'], tip: 'The team logo up top, plus optional league or sponsor logos in the bottom corner.' },
+    { title: 'Finish', secs: [], finish: true, tip: 'Download it below the preview, or print it up to 24 x 36 in.' },
+  ];
+  const GAME_STEPS = [
+    { title: 'Team & colors', secs: ['field', 'palette'], team: true, tip: 'Look up your team for its colors and logo.' },
+    { title: 'Photo', secs: ['photo'], tip: 'A big action shot fills the top. Zoom and slide it to frame it.' },
+    { title: 'Opponent & game', secs: ['game', 'line1', 'extra'], tip: "Who you're playing (their logo has a Find button), home or away, and the date, time and place." },
+    { title: 'Finish', secs: [], finish: true, tip: 'Download it for social media or print it.' },
+  ];
+  const stepsNow = () => (isSched() ? SCHED_STEPS : isGame() ? GAME_STEPS : isC() ? CARD_STEPS : isP() ? POSTER_STEPS : isB() ? STEPS.map((x) => Object.assign({}, x, BANNER_STEP[x.title] || {})) : STEPS);
   function buildGuided(p) {
     const STEPS = stepsNow();
     if (st.step >= STEPS.length) st.step = 0;
@@ -1205,7 +1301,9 @@
   function buildManual(p) {
     p.append(h('h2', {}, 'Manual'), h('p', { class: 'lead' }, `Every part is editable. Click a part on the ${PM.productOf(st.d)} to jump to it.`));
     const selSec = PART_SEC[st.sel];
-    (isC() ? ['layers', 'palette', 'field', 'photo', 'line2', 'line1', 'extra', 'mark', 'stamps', 'maker']
+    (isSched() ? ['layers', 'palette', 'field', 'schedule', 'line2', 'line1', 'extra', 'mark', 'stamps']
+      : isGame() ? ['layers', 'palette', 'field', 'photo', 'game', 'line2', 'line1', 'extra', 'mark']
+      : isC() ? ['layers', 'palette', 'field', 'photo', 'line2', 'line1', 'extra', 'mark', 'stamps', 'maker']
       : isP() ? ['layers', 'palette', 'field', 'photo', 'line2', 'extra', 'line1', 'mark', 'stamps'] : ORDER.filter((k) => k !== 'years' || isB()))
       .forEach((k) => p.append(secEl(k, k === selSec || k === 'layers')));
     p.append(h('div', { class: 'scroll-pad' })); // room to bring even the last section up to the top
@@ -1336,7 +1434,7 @@
       }
       if (C.contrast(t.fill, d.field.color) < 1.35 && t.o1.w === 0 && t.o2.w === 0) out.push({ msg: `${name} is hard to read on the felt.`, fixes: [['Add outline', () => { snapshot(true); t.o2 = { color: d.palette.primary, w: 4 }; buildPanel(); queueRender(); }]] });
     });
-    if (PM.isPoster(d) && !d.pst.photo) out.push({ msg: `No photo yet. Upload one or drop it on the ${PM.productOf(d)}.`, fixes: [['Add photo', () => { st.sel = 'photo'; setMode('manual'); }]] });
+    if (PM.isPoster(d) && !d.pst.photo && !(PM.TEMPLATES[d.template] || {}).noPhoto) out.push({ msg: `No photo yet. Upload one or drop it on the ${PM.productOf(d)}.`, fixes: [['Add photo', () => { st.sel = 'photo'; setMode('manual'); }]] });
     else if (!PM.isPoster(d) && d.mark.show && !d.mark.src && st.mode !== 'bulk') out.push({ msg: 'No primary logo yet. Upload one, paste a link, or use Find.', fixes: [['Add logo', () => { st.sel = 'mark'; setMode('manual'); }]] });
     out.forEach((w) => box.append(h('div', { class: 'warn' }, h('span', {}, '⚠ ' + w.msg), ...w.fixes.map(([l, f]) => h('button', { onclick: f }, l)))));
   }

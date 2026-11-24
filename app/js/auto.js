@@ -9,8 +9,8 @@ window.PM = window.PM || {};
     if (team.source === 'Wikipedia' && !team.detailed) team = await PM.sources.wikiDetails(team);
     const d = base ? JSON.parse(JSON.stringify(base)) : PM.defaultDesign();
     d.name = team.name || d.name;
-    d.line1.text = team.location ?? d.line1.text;
-    d.line2.text = team.nickname ?? d.line2.text;
+    // posters and cards fill their own lettering (A.posterText); pennants and banners start from city / nickname
+    if (!PM.isPoster(d)) { d.line1.text = team.location ?? d.line1.text; d.line2.text = team.nickname ?? d.line2.text; }
     if (opts.order) d.stripes.order = opts.order;
 
     let logoData = d.mark.src;
@@ -185,6 +185,25 @@ window.PM = window.PM || {};
   };
   // Poster lettering: the player's name big, the signature over the photo, a small team caption.
   A.posterText = (d, team, o = {}) => {
+    // schedule poster: the team's name up top, the season line under it, a footer note
+    if (d.template === 'posterSchedule') {
+      d.line2.text = (team && team.name) || d.line2.text || 'Team Name'; d.line2.show = true; d.line2.useImg = false; d.line2.autoImg = false;
+      if (!d.line1.text || /^player name$/i.test(d.line1.text)) d.line1.text = `${new Date().getFullYear()} Schedule`;
+      d.line1.show = true; d.line1.useImg = false;
+      if (!d.extra.text || /^player name$/i.test(d.extra.text) || d.extra.text === d.line2.text || d.extra.text === (team && team.name)) d.extra.text = 'Home games shaded · times local';
+      d.extra.show = true; d.extra.useImg = false;
+      return;
+    }
+    // game-day poster: GAME DAY, our logo vs theirs, date and place
+    if (d.template === 'posterGameDay') {
+      d.line2.text = d.line2.text && !/^player name$/i.test(d.line2.text) && d.texts && d.texts.gameday ? d.line2.text : 'Game Day';
+      d.line2.show = true; d.line2.useImg = false; d.line2.autoImg = false;
+      if (/^player name$/i.test(d.line1.text || '') || /schedule$/i.test(d.line1.text || '')) d.line1.text = '';
+      if (/^player name$/i.test(d.extra.text || '') || /^home games shaded/i.test(d.extra.text || '')) d.extra.text = '';
+      d.line1.show = true; d.line1.useImg = false; d.extra.show = !!d.extra.text; d.extra.useImg = false;
+      if (team) d.game.us = team.nickname || team.name || d.game.us;
+      return;
+    }
     const player = (o.player || '').trim() || (d.line2.text && d.texts && d.texts.poster ? d.line2.text : '') || 'Player Name';
     d.line2.text = player; d.line2.show = true; d.line2.useImg = false; d.line2.autoImg = false;
     d.extra.text = o.signature != null && o.signature !== '' ? o.signature : player; d.extra.useImg = false; d.extra.autoImg = false;
