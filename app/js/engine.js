@@ -451,6 +451,15 @@ window.PM = window.PM || {};
     ['line1', 'Wordmark line 1'], ['line2', 'Wordmark line 2'], ['extra', 'Extra text'], ['years', 'Championship years'], ['mark', 'Primary mark'],
     ['stamps', 'League stamps'], ['maker', "Maker's mark"], ['pattern', 'Background pattern'], ['spine', 'Spine'], ['ties', 'Ties'], ['field', 'Felt body'],
   ];
+  // Stacking order of the parts that sit on the felt, bottom to top (the last one is drawn over the rest).
+  // Felt, pattern, spine and ties always stay underneath.
+  PM.STACK_DEFAULT = ['stamps', 'mark', 'extra', 'line2', 'line1', 'years', 'maker'];
+  PM.stackOf = (d) => {
+    const s = (Array.isArray(d.stack) ? d.stack : []).filter((k, i, a) => PM.STACK_DEFAULT.includes(k) && a.indexOf(k) === i);
+    // parts missing from a saved order go in at their usual place
+    PM.STACK_DEFAULT.forEach((k, i) => { if (!s.includes(k)) { const after = PM.STACK_DEFAULT.slice(0, i).reverse().find((q) => s.includes(q)); s.splice(after ? s.indexOf(after) + 1 : 0, 0, k); } });
+    return s;
+  };
   PM.layer = (d, k) => (d.layers && d.layers[k]) || {};
   PM.isLocked = (d, k) => !!PM.layer(d, k).lock;
   // the design objects a layer key owns (the pattern layer covers every template's pattern settings)
@@ -537,6 +546,8 @@ window.PM = window.PM || {};
     texts: {},
     // Layers panel state: lock = fixed in place; move / color = link group ('' or 'A'..'D')
     layers: {},
+    // stacking order of the parts on the felt, bottom to top (see PM.stackOf)
+    stack: ['stamps', 'mark', 'extra', 'line2', 'line1', 'years', 'maker'],
   });
 
   const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -936,21 +947,25 @@ window.PM = window.PM || {};
     if (has('applique')) {
       const ph = !!opts.placeholders;
       // League / conference stamps
-      const S = d.stamps; let sx = S.x;
-      s += `<g data-part="stamps">`;
-      S.items.forEach((it, i) => {
-        if (!it.show) return;
-        if (!it.src && !ph) return;
-        s += imagePart('stamp' + (i + 1), it.src, sx + it.size / 2, S.y, it.size, S.ko, null, ph, it.label || 'Stamp');
-        sx += it.size + S.gap;
-      });
-      s += `</g>`;
-      if (d.mark.show) s += imagePart('mark', d.mark.src, d.mark.x, d.mark.y, d.mark.size, d.mark.knockout, d.mark.ring, ph, 'PRIMARY MARK');
-      s += textPart(d.extra, 'extra');
-      s += textPart(d.line2, 'line2');
-      s += textPart(d.line1, 'line1');
-      if (t.banner) s += yearsPart(d);
-      if (d.maker.show) s += imagePart('maker', d.maker.src, d.maker.x, d.maker.y, d.maker.size, d.maker.ko, null, ph, 'MAKER');
+      const part = {
+        stamps: () => {
+          const S = d.stamps; let sx = S.x, o = `<g data-part="stamps">`;
+          S.items.forEach((it, i) => {
+            if (!it.show) return;
+            if (!it.src && !ph) return;
+            o += imagePart('stamp' + (i + 1), it.src, sx + it.size / 2, S.y, it.size, S.ko, null, ph, it.label || 'Stamp');
+            sx += it.size + S.gap;
+          });
+          return o + `</g>`;
+        },
+        mark: () => (d.mark.show ? imagePart('mark', d.mark.src, d.mark.x, d.mark.y, d.mark.size, d.mark.knockout, d.mark.ring, ph, 'PRIMARY MARK') : ''),
+        extra: () => textPart(d.extra, 'extra'),
+        line2: () => textPart(d.line2, 'line2'),
+        line1: () => textPart(d.line1, 'line1'),
+        years: () => (t.banner ? yearsPart(d) : ''),
+        maker: () => (d.maker.show ? imagePart('maker', d.maker.src, d.maker.x, d.maker.y, d.maker.size, d.maker.ko, null, ph, 'MAKER') : ''),
+      };
+      for (const k of PM.stackOf(d)) s += part[k]();
     }
 
     const W = t.W, H = t.H;

@@ -416,15 +416,19 @@ window.PM = window.PM || {};
       if (ko && ko.on && ko.w > 0) { const r = Math.max(1, Math.round(ko.w * k)); ring(lay, outl, W, H, r, ko.color); over(outl, lay); const o2 = blank(); ring(outl, o2, W, H, 1, ink); over(px, o2); over(px, outl); }
       else { ring(lay, outl, W, H, 1, ink); over(px, outl); over(px, lay); }
     };
-    if (d.mark.show) await drawImg(d.mark.src, d.mark.x, d.mark.y, d.mark.size, d.mark.knockout, P.logoColors);
-    if (W >= 150) { let sx = d.stamps.x; for (const it of d.stamps.items) { if (!it.show) continue; if (it.src) await drawImg(it.src, sx + it.size / 2, d.stamps.y, it.size, d.stamps.ko, 3); sx += it.size + d.stamps.gap; } }
-    if (d.maker.show && W >= 150) await drawImg(d.maker.src, d.maker.x, d.maker.y, d.maker.size, d.maker.ko, 3);
     // 4) lettering in a pixel font, hard edges, outlined for legibility
     await document.fonts.load(`700 16px "${PX_FONT}"`).catch(() => {});
     // banners: each row of championship years is drawn like another line of lettering
     const yearLines = PM.isBanner(d) && d.years.show ? (() => { const sz = PM.yearsSize(d), gap = d.years.lineGap || 1.18;
       return PM.yearRows(d.years).map((r, i) => Object.assign({}, d.years, { text: r, size: sz, show: true, useImg: false, y: d.years.y + i * gap * sz })); })() : [];
-    for (const l of [d.extra, d.line2, d.line1, ...yearLines]) {
+    // logos and lettering go down in the design's stacking order (bottom first)
+    for (const key of PM.stackOf(d)) {
+      if (key === 'mark') { if (d.mark.show) await drawImg(d.mark.src, d.mark.x, d.mark.y, d.mark.size, d.mark.knockout, P.logoColors); continue; }
+      if (key === 'stamps') { if (W >= 150) { let sx = d.stamps.x; for (const it of d.stamps.items) { if (!it.show) continue; if (it.src) await drawImg(it.src, sx + it.size / 2, d.stamps.y, it.size, d.stamps.ko, 3); sx += it.size + d.stamps.gap; } } continue; }
+      if (key === 'maker') { if (d.maker.show && W >= 150) await drawImg(d.maker.src, d.maker.x, d.maker.y, d.maker.size, d.maker.ko, 3); continue; }
+      for (const l of key === 'years' ? yearLines : [d[key]]) await drawLine(l);
+    }
+    async function drawLine(l) {
       if (PM.lineUsesImg(l)) {
         // wordmark image: drawn like a logo (few colors + outline) inside its box
         const b = PM.lineImgBox(l);
@@ -433,9 +437,9 @@ window.PM = window.PM || {};
         x.drawImage(img, Math.round((b.cx - b.w / 2) * k), Math.round((b.cy - b.h / 2) * k), Math.max(1, Math.round(b.w * k)), Math.max(1, Math.round(b.h * k)));
         const lay = x.getImageData(0, 0, W, H).data; reduceColors(lay, P.logoColors);
         const r1 = blank(); ring(lay, r1, W, H, 1, l.ko && l.ko.on ? l.ko.color : d.field.color); over(r1, lay); over(px, r1);
-        continue;
+        return;
       }
-      if (!l.show || !l.text) continue;
+      if (!l.show || !l.text) return;
       const c = canvas(W, H), x = c.getContext('2d');
       const capWant = PM.fitSize(l) * k * 0.72, maxW = (l.maxWidth || 800) * k * 1.08;
       const cx = l.x * k, by = Math.round(l.y * k);

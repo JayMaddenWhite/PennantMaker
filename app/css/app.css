@@ -143,7 +143,7 @@ input[type=file] { max-width: 100%; font-size: 12px; }
 
 /* Layers panel */
 .layers { display: flex; flex-direction: column; gap: 2px; }
-.lrow { display: grid; grid-template-columns: 1fr 38px 38px 52px 52px; gap: 4px; align-items: center; padding: 2px 4px; border-radius: 6px; }
+.lrow { display: grid; grid-template-columns: 22px 1fr 38px 38px 52px 52px; gap: 4px; align-items: center; padding: 2px 4px; border-radius: 6px; }
 .lrow.lhead { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
 .lrow.sel { background: var(--chip); }
 .lrow .lname { border: none; background: none; text-align: left; padding: 4px 2px; font-size: 13px; }
@@ -249,7 +249,7 @@ input[type=checkbox], input[type=radio], input[type=range] { accent-color: var(-
   /* bigger tap targets */
   input[type=checkbox] { width: 18px; height: 18px; }
   details.sec > summary { padding: 12px; }
-  .lrow { grid-template-columns: 1fr 34px 34px 48px 48px; }
+  .lrow { grid-template-columns: 24px 1fr 34px 34px 48px 48px; }
 }
 @media (max-width: 420px) {
   .top-actions #undoBtn, .top-actions #redoBtn { display: none; }
@@ -286,3 +286,20 @@ details.subsec > .sub-body { display: flex; flex-direction: column; gap: 9px; pa
 .color-ctl .sw { width: 22px; height: 22px; }
 .swatches .sw-sep { width: 1px; height: 18px; background: var(--line); margin: 0 2px; }
 @media (max-width: 860px) { .color-ctl .sw { width: 26px; height: 26px; } }
+
+/* Layers: locked down until "Edit layers"; drag handles restack the parts */
+.lyr-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.lyr-bar .fine { margin: 0; }
+.lyr-edit { padding: 5px 10px; font-size: 12px; border-radius: 6px; white-space: nowrap; }
+.lyr-edit.on { background: var(--yellow); color: #163a26; border-color: var(--yellow); font-weight: 600; }
+.layers.locked .lrow:not(.lhead) select, .layers.locked .lrow:not(.lhead) input, .layers.locked .lrow .lk { opacity: .45; }
+.layers.editing { outline: 1px dashed var(--yellow); outline-offset: 4px; border-radius: 6px; }
+.lrow .grip { border: none; background: none; padding: 0; width: 22px; height: 26px; font-size: 16px; line-height: 1; color: var(--muted); opacity: .55; cursor: grab; touch-action: none; }
+.lrow .grip:hover:not(:disabled), .lrow .grip:focus-visible { opacity: 1; color: var(--yellow); }
+.lrow .grip:disabled { opacity: .18; cursor: default; }
+.lrow.dragging { position: relative; z-index: 5; background: rgba(0,0,0,.35); box-shadow: 0 4px 14px rgba(0,0,0,.45); opacity: .95; }
+.lrow.dragging .grip { cursor: grabbing; opacity: 1; color: var(--yellow); }
+.lrow.drop-above { box-shadow: inset 0 3px 0 var(--yellow); }
+.lrow.drop-below { box-shadow: inset 0 -3px 0 var(--yellow); }
+.lyr-div { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; border-top: 1px dashed var(--line); margin-top: 6px; padding-top: 6px; }
+@media (max-width: 860px) { .lrow .grip { width: 24px; height: 32px; font-size: 18px; } }

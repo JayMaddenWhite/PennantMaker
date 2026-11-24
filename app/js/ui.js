@@ -747,28 +747,93 @@
     pattern: [() => (isB() ? 'bnr.show' : null) || ({ classic: 'stripes.show', hoops: 'hoops.show', hockey: 'hockey.show', edge: 'edge.show', split: 'split.show', bands: 'bands.show', gridiron: 'grid.show' })[st.d.template]],
   };
   const GROUPS = ['', 'A', 'B', 'C', 'D'];
+  // Layers panel. It is locked down until you press "Edit layers": then the drag handles, show, locks and
+  // link groups wake up; press "Done" to lock it back down. Rows run top to bottom the way parts stack.
   function layersPanel() {
-    const wrap = h('div', { class: 'layers' },
-      h('div', { class: 'lrow lhead' }, h('span', {}, 'Layer'), h('span', { title: 'Show' }, 'Show'), h('span', { title: 'Lock in place' }, 'Lock'), h('span', { title: 'Layers with the same letter move together' }, 'Move'), h('span', { title: 'Layers with the same letter change colors together' }, 'Color')));
-    for (const [k, label] of PM.LAYERS_ALL) {
-      if (k === 'years' && !isB()) continue;
+    const edit = !!st.layerEdit;
+    const toggle = h('button', { class: 'lyr-edit' + (edit ? ' on' : ''), type: 'button',
+      title: edit ? 'Lock the layers back down' : 'Unlock the layers to reorder, lock and link them',
+      onclick: () => { st.layerEdit = !edit; buildPanel(); toast(st.layerEdit ? 'Layers unlocked: drag ⠿ to restack, then press Done' : 'Layers locked down', 2400); } },
+      edit ? '✓ Done' : '✎ Edit layers');
+    const wrap = h('div', { class: 'layers' + (edit ? ' editing' : ' locked') },
+      h('div', { class: 'lyr-bar' }, h('span', { class: 'fine' }, edit ? 'Drag ⠿ to move a part above or below another.' : 'Locked down. Press Edit layers to change them.'), toggle),
+      h('div', { class: 'lrow lhead' }, h('span', {}), h('span', {}, 'Layer'), h('span', { title: 'Show' }, 'Show'), h('span', { title: 'Lock in place' }, 'Lock'), h('span', { title: 'Layers with the same letter move together' }, 'Move'), h('span', { title: 'Layers with the same letter change colors together' }, 'Color')));
+    const label = (k) => (PM.LAYERS_ALL.find(([q]) => q === k) || [k, k])[1];
+    const isSel = (k) => st.sel && (PART_SEC[st.sel] === k || (k === 'pattern' && PART_SEC[st.sel] === 'pattern'));
+    const rowFor = (k, stackable) => {
       const L = PM.layer(st.d, k), movable = PM.LAYER_KEYS.includes(k);
       const visPaths = (VIS[k] || []).map((x) => (typeof x === 'function' ? x() : x));
-      const vis = visPaths.length ? h('input', { type: 'checkbox', checked: visPaths.some((q) => get(q)), title: 'Show / hide' }) : h('span');
+      const vis = visPaths.length ? h('input', { type: 'checkbox', checked: visPaths.some((q) => get(q)), title: 'Show / hide', disabled: !edit }) : h('span');
       if (visPaths.length) vis.addEventListener('change', () => { snapshot(true); visPaths.forEach((q) => set(q, vis.checked)); buildPanel(); queueRender(); });
-      const lock = movable ? h('button', { class: 'lk' + (L.lock ? ' on' : ''), title: L.lock ? 'Unlock' : 'Lock in place', onclick: () => setLayer(k, 'lock', !L.lock) }, L.lock ? '🔒' : '🔓') : h('span');
+      const lock = movable ? h('button', { class: 'lk' + (L.lock ? ' on' : ''), disabled: !edit, title: L.lock ? 'Unlock' : 'Lock in place', onclick: () => setLayer(k, 'lock', !L.lock) }, L.lock ? '🔒' : '🔓') : h('span');
       const grp = (kind) => {
-        const sel = h('select', { class: 'grp' + (L[kind] ? ' g' + L[kind] : '') }, GROUPS.map((g) => h('option', { value: g, selected: (L[kind] || '') === g }, g || '—')));
+        const sel = h('select', { class: 'grp' + (L[kind] ? ' g' + L[kind] : ''), disabled: !edit }, GROUPS.map((g) => h('option', { value: g, selected: (L[kind] || '') === g }, g || '—')));
         sel.addEventListener('change', () => setLayer(k, kind, sel.value));
         return sel;
       };
-      wrap.append(h('div', { class: 'lrow' + (st.sel && (PART_SEC[st.sel] === k || (k === 'pattern' && PART_SEC[st.sel] === 'pattern')) ? ' sel' : '') },
-        (() => { const b = h('button', { class: 'lname', onclick: () => select(k === 'pattern' ? 'pattern' : k) }, label); if (IMG_SLOT[k]) { dropTarget(b, k); b.title = 'Click to edit · drop an image here'; } return b; })(),
-        vis, lock, movable ? grp('move') : h('span'), grp('color')));
-    }
+      const canDrag = edit && stackable && !L.lock;
+      const grip = stackable ? h('button', { class: 'grip', type: 'button', disabled: !canDrag,
+        title: !edit ? 'Press Edit layers to restack' : L.lock ? 'Locked: unlock it to restack' : 'Drag to move above or below other parts (or use the arrow keys)' }, '⠿') : h('span', { class: 'grip-none' });
+      const name = h('button', { class: 'lname', onclick: () => select(k === 'pattern' ? 'pattern' : k) }, label(k));
+      if (IMG_SLOT[k]) { dropTarget(name, k); name.title = 'Click to edit · drop an image here'; }
+      const r = h('div', { class: 'lrow' + (isSel(k) ? ' sel' : '') + (stackable ? ' stk' : ' fixed') }, grip, name, vis, lock, movable ? grp('move') : h('span'), grp('color'));
+      r.dataset.key = k;
+      if (canDrag) dragRow(grip, r);
+      return r;
+    };
+    // stacking parts, top first (years only on banners)
+    const stack = PM.stackOf(st.d).filter((k) => k !== 'years' || isB()).reverse();
+    for (const k of stack) wrap.append(rowFor(k, true));
+    wrap.append(h('div', { class: 'lyr-div' }, 'Underneath (always at the bottom)'));
+    for (const k of ['pattern', 'spine', 'ties', 'field']) wrap.append(rowFor(k, false));
     wrap.append(h('p', { class: 'fine', style: 'margin:6px 0 0' },
-      'Same letter under Move = they drag and slide together. Same letter under Color = changing a color on one changes that same color on the others. Locked layers can\'t be moved or clicked, and auto-layout leaves them alone.'));
+      "The top row is drawn over everything below it. Same letter under Move = they drag and slide together. Same letter under Color = changing a color on one changes that same color on the others. Locked layers can't be moved, restacked or clicked, and auto-layout leaves them alone."));
     return wrap;
+
+    // Save a new top-to-bottom order of the stacking rows.
+    function restack(topFirst, movedKey) {
+      const full = PM.stackOf(st.d), hidden = full.filter((k) => !topFirst.includes(k)); // years on a pennant keeps its place
+      const bottomFirst = topFirst.slice().reverse();
+      hidden.forEach((k) => bottomFirst.splice(Math.min(full.indexOf(k), bottomFirst.length), 0, k));
+      if (bottomFirst.join() === full.join()) return;
+      snapshot(true); st.d.stack = bottomFirst; buildPanel(); queueRender();
+      const i = topFirst.indexOf(movedKey);
+      toast(`${label(movedKey)} is now ${i === 0 ? 'on top' : i === topFirst.length - 1 ? 'at the bottom' : `under ${label(topFirst[i - 1])}`}`, 2200);
+    }
+    function dragRow(grip, r) {
+      const order = () => [...wrap.querySelectorAll('.lrow.stk')].map((x) => x.dataset.key);
+      grip.addEventListener('keydown', (e) => {
+        if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+        e.preventDefault();
+        const o = order(), i = o.indexOf(r.dataset.key), j = i + (e.key === 'ArrowUp' ? -1 : 1);
+        if (j < 0 || j >= o.length) return;
+        o.splice(i, 1); o.splice(j, 0, r.dataset.key); restack(o, r.dataset.key);
+        requestAnimationFrame(() => { const g = document.querySelector(`.layers .lrow[data-key="${r.dataset.key}"] .grip`); if (g) g.focus(); });
+      });
+      grip.addEventListener('pointerdown', (e) => {
+        e.preventDefault(); grip.setPointerCapture(e.pointerId);
+        const rows = [...wrap.querySelectorAll('.lrow.stk')], y0 = e.clientY;
+        let to = rows.indexOf(r);
+        r.classList.add('dragging');
+        const move = (ev) => {
+          r.style.transform = `translateY(${ev.clientY - y0}px)`;
+          // where it would land: before the first other row whose middle is below the pointer
+          const others = rows.filter((x) => x !== r);
+          let idx = others.findIndex((x) => { const b = x.getBoundingClientRect(); return ev.clientY < b.top + b.height / 2; });
+          if (idx < 0) idx = others.length;
+          to = idx;
+          rows.forEach((x) => x.classList.remove('drop-above', 'drop-below'));
+          if (others[idx]) others[idx].classList.add('drop-above'); else if (others.length) others[others.length - 1].classList.add('drop-below');
+        };
+        const up = () => {
+          grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); grip.removeEventListener('pointercancel', up);
+          rows.forEach((x) => x.classList.remove('drop-above', 'drop-below', 'dragging')); r.style.transform = '';
+          const o = rows.map((x) => x.dataset.key).filter((k) => k !== r.dataset.key);
+          o.splice(to, 0, r.dataset.key); restack(o, r.dataset.key);
+        };
+        grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up); grip.addEventListener('pointercancel', up);
+      });
+    }
   }
   SECTIONS.layers = { title: 'Layers', build: () => [layersPanel()] };
 
