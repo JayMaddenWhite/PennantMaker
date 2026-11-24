@@ -34,6 +34,41 @@
   st.banner = st.banner || { kicker: '', title: 'CHAMPIONS', years: '' };
   st.autoTplB = st.autoTplB || 'bannerRafter';
   const isB = () => PM.isBanner(st.d);
+  const isP = () => PM.isPoster(st.d);
+  st.poster = st.poster || { player: '', signature: '', caption: '' };
+  // what each part is called on a poster
+  const POSTER_NAMES = { line2: 'Name', line1: 'Caption', extra: 'Signature', mark: 'Team logo', stamps: 'Corner logos', maker: "Maker's mark", field: 'Paper / frame & photo' };
+  // Photos are shrunk to a sensible size (long side 2000 px, JPEG) so designs stay quick to save and undo.
+  const shrinkPhoto = (src) => new Promise((res) => {
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, 2000 / Math.max(img.naturalWidth, img.naturalHeight));
+      const w = Math.max(1, Math.round(img.naturalWidth * k)), hh = Math.max(1, Math.round(img.naturalHeight * k));
+      const c = document.createElement('canvas'); c.width = w; c.height = hh;
+      const x = c.getContext('2d'); x.fillStyle = '#ffffff'; x.fillRect(0, 0, w, hh); x.drawImage(img, 0, 0, w, hh);
+      let data = src; try { data = c.toDataURL('image/jpeg', 0.88); } catch {}
+      res({ data, ar: w / hh });
+    };
+    img.onerror = () => res({ data: src, ar: 1.5 });
+    img.src = src;
+  });
+  async function setPhoto(src) {
+    if (!src) { snapshot(true); st.d.pst.photo = null; st.d.pst.photoAR = 0; buildPanel(); queueRender(); return; }
+    const r = await shrinkPhoto(src);
+    snapshot(true); Object.assign(st.d.pst, { photo: r.data, photoAR: r.ar, zoom: 1, fx: 0.5, fy: 0.5 });
+    buildPanel(); queueRender(); toast('Photo added. Zoom and slide it under Photo.', 2600);
+  }
+  function cPhoto() {
+    const file = h('input', { type: 'file', accept: 'image/*', hidden: true });
+    file.addEventListener('change', () => { const f = file.files[0]; if (!f) return; const r = new FileReader(); r.onload = () => setPhoto(r.result); r.readAsDataURL(f); file.value = ''; });
+    const p = st.d.pst || {};
+    const thumb = h('div', { class: 'photo-thumb', title: 'Drop a photo here' }, p.photo ? h('img', { src: p.photo, alt: '' }) : 'no photo');
+    const box = h('div', { class: 'img-slot' }, thumb, h('div', { class: 'btns' },
+      h('button', { class: 'primary', onclick: () => file.click() }, p.photo ? 'Replace photo' : 'Upload photo'),
+      p.photo ? h('button', { onclick: () => setPhoto(null) }, 'Remove') : null), file);
+    dropTarget(box, 'photo');
+    return box;
+  }
   const TW = () => (PM.TEMPLATES[st.d.template] || PM.TEMPLATES.classic).W, TH = () => (PM.TEMPLATES[st.d.template] || PM.TEMPLATES.classic).H;
 
   // ---------- state helpers ----------
@@ -89,7 +124,7 @@
       }
       void before;
     }
-    if (/^(line1|line2|extra|years)\.(text|font|img|useImg|show|perRow|caps|smallCaps)$/.test(path)) fitNow([root]);
+    if (/^(line1|line2|extra|years)\.(text|font|img|useImg|show|perRow|caps|smallCaps|align)$/.test(path)) fitNow([root]);
     else if (path === 'bnr.shape') fitNow(['years', 'mark']);
     else if (path === 'mark.src') fitNow(['mark', 'line1', 'line2']);
     queueRender();
@@ -158,7 +193,7 @@
   }
 
   // ---------- click & drag on the preview ----------
-  const PART_SEC = { field: 'field', spine: 'spine', stitch: 'spine', ties: 'ties', tieTop: 'ties', tieBottom: 'ties', pattern: 'pattern', stripes: 'pattern', stamps: 'stamps', stamp1: 'stamps', stamp2: 'stamps', mark: 'mark', line1: 'line1', line2: 'line2', extra: 'extra', maker: 'maker', years: 'years' };
+  const PART_SEC = { photo: 'photo', field: 'field', spine: 'spine', stitch: 'spine', ties: 'ties', tieTop: 'ties', tieBottom: 'ties', pattern: 'pattern', stripes: 'pattern', stamps: 'stamps', stamp1: 'stamps', stamp2: 'stamps', mark: 'mark', line1: 'line1', line2: 'line2', extra: 'extra', maker: 'maker', years: 'years' };
   const DRAG = { mark: 'mark', line1: 'line1', line2: 'line2', extra: 'extra', years: 'years', stamp1: 'stamps', stamp2: 'stamps', stamps: 'stamps', maker: 'maker' };
   let drag = null;
   function onStageDown(e) {
@@ -254,8 +289,9 @@
   // shadow, slant, spacing, knockout. Size, width and position stay with each line.
   const STYLE_KEYS = ['font', 'caps', 'smallCaps', 'fill', 'o1', 'o2', 'shadow', 'italic', 'letterSpacing', 'slant', 'tail', 'ko'];
   const grabStyle = (t) => clone(Object.fromEntries(STYLE_KEYS.filter((k) => t[k] !== undefined).map((k) => [k, t[k]])));
-  const TEXT_PARTS = () => [['line1', isB() ? 'Top line' : 'Line 1 (small)'], ['line2', isB() ? 'Big line' : 'Line 2 (big)'],
-    ['extra', isB() ? 'Team name line' : 'Extra text'], ...(isB() ? [['years', 'Years']] : [])];
+  const TEXT_PARTS = () => (isP() ? [['line2', 'Name'], ['extra', 'Signature'], ['line1', 'Caption']]
+    : [['line1', isB() ? 'Top line' : 'Line 1 (small)'], ['line2', isB() ? 'Big line' : 'Line 2 (big)'],
+      ['extra', isB() ? 'Team name line' : 'Extra text'], ...(isB() ? [['years', 'Years']] : [])]);
   const partName = (k) => (TEXT_PARTS().find(([v]) => v === k) || [k, k])[1];
   // the style clipboard outlives the design (paste onto another pennant), so it lives in browser storage
   const CLIP = 'pm.styleClip', KO_CLIP = 'pm.koClip';
@@ -399,11 +435,12 @@
   }
 
   // ---------- Images into layers (upload, link, search, drag and drop) ----------
-  const IMG_SLOT = { mark: 'mark.src', stamp1: 'stamps.items.0.src', stamp2: 'stamps.items.1.src', stamps: 'stamps.items.0.src', maker: 'maker.src', line1: 'line1.img', line2: 'line2.img', extra: 'extra.img' };
-  const SLOT_NAME = { mark: 'Primary mark', stamp1: 'Stamp 1', stamp2: 'Stamp 2', stamps: 'Stamp 1', maker: "Maker's mark", line1: 'Wordmark line 1', line2: 'Wordmark line 2', extra: 'Extra text' };
+  const IMG_SLOT = { photo: 'pst.photo', mark: 'mark.src', stamp1: 'stamps.items.0.src', stamp2: 'stamps.items.1.src', stamps: 'stamps.items.0.src', maker: 'maker.src', line1: 'line1.img', line2: 'line2.img', extra: 'extra.img' };
+  const SLOT_NAME = { photo: 'Photo', mark: 'Primary mark', stamp1: 'Stamp 1', stamp2: 'Stamp 2', stamps: 'Stamp 1', maker: "Maker's mark", line1: 'Wordmark line 1', line2: 'Wordmark line 2', extra: 'Extra text' };
   const aspectOf = (src) => new Promise((res) => { const i = new Image(); i.onload = () => res(i.naturalWidth / i.naturalHeight || 3); i.onerror = () => res(3); i.src = src; });
   // Put image data into a slot path and switch on whatever shows it.
   async function putImage(path, data) {
+    if (path === 'pst.photo') return setPhoto(data);
     snapshot(true);
     set(path, data);
     const root = path.split('.')[0];
@@ -538,6 +575,7 @@
     row('Image size', cRange(k + '.imgScale', 0.2, 2.5, 0.05)),
     row('Font', cFont(k + '.font')),
     row('Capitals', h('div', { class: 'col' }, cCheck(k + '.caps', 'ALL CAPS'), cCheck(k + '.smallCaps', 'Small caps'))),
+    row('Line up', cSelect(k + '.align', [['middle', 'Centred on X'], ['start', 'Left edge at X'], ['end', 'Right edge at X']])),
     row('Size', cRange(k + '.size', 20, 320)),
     row('Max width', cRange(k + '.maxWidth', 100, 1400, 10)),
     row('Fill', cColor(k + '.fill')),
@@ -573,7 +611,12 @@
       ],
     },
     field: {
-      title: () => (isB() ? 'Banner shape & felt' : 'Felt body'), build: () => [
+      title: () => (isP() ? 'Poster style & paper' : isB() ? 'Banner shape & felt' : 'Felt body'), build: () => isP() ? [
+        row('Style', cTemplate()),
+        row(st.d.template === 'posterWhite' ? 'Paper' : 'Frame color', cColor('field.color')),
+        h('div', { class: 'sub' }, 'Line round the photo'),
+        row('Keyline', cCheck('pst.keyOn')), row('Color', cColor('pst.keyColor')), row('Width', cRange('pst.keyW', 0, 24, 0.5)),
+      ] : [
         row('Background', cTemplate()),
         isB() ? row('Shape', cSelect('bnr.shape', PM.BANNER_SHAPES)) : null,
         row('Felt color', cColor('field.color')),
@@ -675,7 +718,7 @@
       ],
     },
     stamps: {
-      title: 'League / conference stamps', build: () => [
+      title: () => (isP() ? 'Corner logos (league / team)' : 'League / conference stamps'), build: () => [
         ...[0, 1].flatMap((i) => [
           h('div', { class: 'sub' }, `Stamp ${i + 1}`),
           row('Show', cCheck(`stamps.items.${i}.show`)),
@@ -691,7 +734,7 @@
       ],
     },
     mark: {
-      title: 'Primary mark (logo)', build: () => [
+      title: () => (isP() ? 'Team logo' : 'Primary mark (logo)'), build: () => [
         row('Show', cCheck('mark.show')),
         row('Logo', cImage('mark.src', 'team')),
         row('Size', cRange('mark.size', 80, 700)),
@@ -703,9 +746,18 @@
         st.d.template === 'hockey' ? h('p', { class: 'fine', style: 'margin:0' }, 'The circle ring around the logo on Vintage Hockey is the medallion ring: Wedges, center stripe & medallion → Ring color.') : null,
       ],
     },
-    line1: { title: () => (isB() ? 'Title – top line (e.g. WORLD SERIES)' : 'Wordmark – line 1 (small)'), build: textSec('line1') },
-    line2: { title: () => (isB() ? 'Title – big line (CHAMPIONS)' : 'Wordmark – line 2 (big)'), build: textSec('line2') },
-    extra: { title: () => (isB() ? 'Team name line' : 'Extra text'), build: textSec('extra') },
+    line1: { title: () => (isP() ? 'Caption (team, position)' : isB() ? 'Title – top line (e.g. WORLD SERIES)' : 'Wordmark – line 1 (small)'), build: textSec('line1') },
+    line2: { title: () => (isP() ? 'Name' : isB() ? 'Title – big line (CHAMPIONS)' : 'Wordmark – line 2 (big)'), build: textSec('line2') },
+    extra: { title: () => (isP() ? 'Signature' : isB() ? 'Team name line' : 'Extra text'), build: textSec('extra') },
+    photo: {
+      title: 'Photo', build: () => [
+        row('Photo', cPhoto()),
+        row('Zoom', cRange('pst.zoom', 1, 3, 0.01)),
+        row('Left ↔ right', cRange('pst.fx', 0, 1, 0.01)),
+        row('Up ↕ down', cRange('pst.fy', 0, 1, 0.01)),
+        h('p', { class: 'fine', style: 'margin:0' }, 'The photo always fills its box. Zoom in, then slide it to frame the player. Use your own photos (or ones you have the rights to).'),
+      ],
+    },
     years: {
       title: 'Championship years', build: () => [
         row('Show', cCheck('years.show')),
@@ -758,7 +810,7 @@
     const wrap = h('div', { class: 'layers' + (edit ? ' editing' : ' locked') },
       h('div', { class: 'lyr-bar' }, h('span', { class: 'fine' }, edit ? 'Drag ⠿ to move a part above or below another.' : 'Locked down. Press Edit layers to change them.'), toggle),
       h('div', { class: 'lrow lhead' }, h('span', {}), h('span', {}, 'Layer'), h('span', { title: 'Show' }, 'Show'), h('span', { title: 'Lock in place' }, 'Lock'), h('span', { title: 'Layers with the same letter move together' }, 'Move'), h('span', { title: 'Layers with the same letter change colors together' }, 'Color')));
-    const label = (k) => (PM.LAYERS_ALL.find(([q]) => q === k) || [k, k])[1];
+    const label = (k) => (isP() && POSTER_NAMES[k]) || (PM.LAYERS_ALL.find(([q]) => q === k) || [k, k])[1];
     const isSel = (k) => st.sel && (PART_SEC[st.sel] === k || (k === 'pattern' && PART_SEC[st.sel] === 'pattern'));
     const rowFor = (k, stackable) => {
       const L = PM.layer(st.d, k), movable = PM.LAYER_KEYS.includes(k);
@@ -785,7 +837,7 @@
     const stack = PM.stackOf(st.d).filter((k) => k !== 'years' || isB()).reverse();
     for (const k of stack) wrap.append(rowFor(k, true));
     wrap.append(h('div', { class: 'lyr-div' }, 'Underneath (always at the bottom)'));
-    for (const k of ['pattern', 'spine', 'ties', 'field']) wrap.append(rowFor(k, false));
+    for (const k of isP() ? ['field'] : ['pattern', 'spine', 'ties', 'field']) wrap.append(rowFor(k, false));
     wrap.append(h('p', { class: 'fine', style: 'margin:6px 0 0' },
       "The top row is drawn over everything below it. Same letter under Move = they drag and slide together. Same letter under Color = changing a color on one changes that same color on the others. Locked layers can't be moved, restacked or clicked, and auto-layout leaves them alone."));
     return wrap;
@@ -916,16 +968,36 @@
       if (t.eraMissing) toast('No logo history found, using the current logo', 3000);
     }
     if (t.source === 'Wikipedia') t = await PM.sources.wikiDetails(t); // logo, colors, league, years from the team's page
+    if (!base && isP()) { base = PM.auto.posterBase(st.d.template); base.pst = clone(st.d.pst); }
     if (!base && isB()) base = PM.auto.bannerBase(st.autoTplB, st.d.bnr.shape);
     if (!base) { base = PM.auto.baseFor(t, st.autoTpl); if (st.d.template === base.template) base.stripes.order = st.d.stripes.order; }
     toast('Building ' + t.name + '…', 6000);
-    const d = await PM.auto.fromTeam(t, base, { wordmark: st.useWordmark !== false, banner: bannerOpts() });
+    const d = await PM.auto.fromTeam(t, base, { wordmark: st.useWordmark !== false, banner: bannerOpts(), poster: posterOpts() });
     st.lastTeam = t;
     replaceDesign(d);
     toast(t.name + (t.eraLabel ? ` (${t.eraLabel} logo)` : '') + ' ready' + ((PM.isBanner(d) ? d.extra : d.line2).autoImg ? ` with the team's wordmark (${(PM.isBanner(d) ? d.extra : d.line2).imgFrom})` : '') +
       (d.mark.src ? '' : ' — no logo found, add one under Primary mark'), 4200);
   }
 
+  // Poster text the user typed in Automatic.
+  function posterOpts() { return { player: st.poster.player || (isP() ? st.d.line2.text : ''), signature: st.poster.signature, caption: st.poster.caption }; }
+  function posterCard() {
+    const inp = (key, ph, apply) => {
+      const fromDesign = key === 'player' && st.d.line2.text !== 'Player Name' ? st.d.line2.text : '';
+      const i = h('input', { type: 'text', value: st.poster[key] || fromDesign || '', placeholder: ph });
+      i.addEventListener('input', () => { st.poster[key] = i.value; apply(i.value); });
+      return i;
+    };
+    const caption = () => [st.lastTeam && st.lastTeam.name, (st.poster.caption || '').trim()].filter(Boolean).join('  ·  ');
+    return h('div', { class: 'card' }, h('h3', {}, 'Poster'),
+      h('div', { class: 'sec-body', style: 'padding:0' },
+        row('Style', cTemplate()),
+        row('Photo', cPhoto()),
+        row('Name', inp('player', 'e.g. Jordan Smith', (v) => { change('line2.text', v || 'Player Name'); if (!st.poster.signature) change('extra.text', v || 'Player Name'); })),
+        row('Signature', inp('signature', 'Same as the name', (v) => change('extra.text', v || st.poster.player || st.d.line2.text))),
+        row('Caption', inp('caption', 'e.g. Shortstop · 2026 (team name is added)', () => { change('line1.text', caption()); change('line1.show', !!caption()); })),
+        h('p', { class: 'fine', style: 'margin:0' }, 'Pick a team below for its colors and logos, or set colors under Team colors. Drop a photo anywhere on the poster.')));
+  }
   // Banner text the user typed in Automatic ('' kicker = from the team's league).
   function bannerOpts() { return { kicker: st.banner.kicker, title: st.banner.title || 'CHAMPIONS', years: st.banner.years || (isB() ? st.d.years.text : '') }; }
   function bannerCard() {
@@ -947,11 +1019,11 @@
   function buildAuto(p) {
     p.append(
       h('h2', {}, 'Automatic'),
-      h('p', { class: 'lead' }, isB() ? 'Pick a team for a championship banner. Colors, logo, league stamps and wordmark are filled in; add the title and years below.' : 'Pick a team. Colors, logo, league stamps and wordmark are filled in for you.'),
-      isB() ? bannerCard() : null,
+      h('p', { class: 'lead' }, isP() ? 'Add a photo and a name, then pick a team for the colors and logos.' : isB() ? 'Pick a team for a championship banner. Colors, logo, league stamps and wordmark are filled in; add the title and years below.' : 'Pick a team. Colors, logo, league stamps and wordmark are filled in for you.'),
+      isP() ? posterCard() : isB() ? bannerCard() : null,
       h('div', { class: 'card' }, h('h3', {}, 'Find a team'), teamSearch((t) => pickTeam(t)),
-        h('div', { class: 'row', style: 'margin-top:10px' }, h('span', {}, 'Background'), cTplChoice()),
-        h('label', { class: 'row', style: 'margin-top:6px;gap:8px;justify-content:flex-start' }, (() => {
+        isP() ? null : h('div', { class: 'row', style: 'margin-top:10px' }, h('span', {}, 'Background'), cTplChoice()),
+        isP() ? null : h('label', { class: 'row', style: 'margin-top:6px;gap:8px;justify-content:flex-start' }, (() => {
           const c = h('input', { type: 'checkbox', checked: st.useWordmark !== false });
           c.addEventListener('change', () => { st.useWordmark = c.checked; });
           return c;
@@ -969,6 +1041,13 @@
         h('div', { class: 'finder' }, h('div', { class: 'grid' }, st.lastTeam.logos.map((l) => h('button', {
           title: l.tag, onclick: async () => { try { const s = await PM.sources.imageData(l.url); change('mark.src', s); } catch (e) { toast(e.message); } },
         }, h('img', { src: PM.sources.proxied(l.url) }), l.tag.split(' ').slice(0, 2).join(' ')))))));
+    }
+    if (isP()) {
+      p.append(h('div', { class: 'card' }, h('h3', {}, 'Quick tweaks'), h('div', { class: 'btns' },
+        h('button', { onclick: () => replaceDesign(PM.auto.swapColors(clone(st.d))) }, 'Swap colors'),
+        h('button', { onclick: () => setMode('guided') }, 'Walk through it'),
+        h('button', { onclick: () => setMode('manual') }, 'Fine-tune manually'))));
+      return;
     }
     const own = { name: '', l1: '', l2: '', p: '#7d2230', s: '#cdb27f', t: '', logo: null };
     const colorIn = (k) => { const i = h('input', { type: 'color', value: own[k] || '#000000' }); i.addEventListener('input', () => { own[k] = i.value; }); return i; };
@@ -1044,9 +1123,17 @@
     Wordmark: { title: 'Title & years', secs: ['line1', 'line2', 'years'], tip: 'The top line (WORLD SERIES, STATE, CONFERENCE), the big line (CHAMPIONS) and the championship years.' },
     Extras: { title: 'Team name & extras', tip: 'The team name (or its wordmark) under the logo, and an optional maker’s mark.' },
   };
-  const stepsNow = () => (isB() ? STEPS.map((x) => Object.assign({}, x, BANNER_STEP[x.title] || {})) : STEPS);
+  const POSTER_STEPS = [
+    { title: 'Style & colors', secs: ['field', 'palette'], team: true, tip: 'Color Frame: a team-color border with the name in caps across the top. Classic White: white paper, the name in a serif at the top left. Look up a team for its colors and logos.' },
+    { title: 'Photo', secs: ['photo'], tip: 'Upload a photo (or drop one on the poster), then zoom and slide it so the player fills the frame.' },
+    { title: 'Name & signature', secs: ['line2', 'extra'], tip: 'The name across the top, and a signature over the photo. Drag either on the poster to move it.' },
+    { title: 'Logos & caption', secs: ['mark', 'stamps', 'line1'], tip: 'A team logo, small league or team logos in a corner, and a caption line like the team and position.' },
+    { title: 'Finish', secs: [], finish: true, tip: 'Download it below the preview, or Save the design to keep working on it later.' },
+  ];
+  const stepsNow = () => (isP() ? POSTER_STEPS : isB() ? STEPS.map((x) => Object.assign({}, x, BANNER_STEP[x.title] || {})) : STEPS);
   function buildGuided(p) {
     const STEPS = stepsNow();
+    if (st.step >= STEPS.length) st.step = 0;
     const s = STEPS[st.step];
     p.append(h('h2', {}, 'Guided'),
       h('div', { class: 'steps' }, STEPS.map((x, i) => h('button', { class: i === st.step ? 'on' : i < st.step ? 'done' : '', onclick: () => { st.step = i; st.sel = null; buildPanel(); queueRender(); } }, `${i + 1}. ${x.title}`))),
@@ -1064,9 +1151,10 @@
 
   // ---------- MANUAL ----------
   function buildManual(p) {
-    p.append(h('h2', {}, 'Manual'), h('p', { class: 'lead' }, `Every part is editable. Click a part on the ${isB() ? 'banner' : 'pennant'} to jump to it.`));
+    p.append(h('h2', {}, 'Manual'), h('p', { class: 'lead' }, `Every part is editable. Click a part on the ${PM.productOf(st.d)} to jump to it.`));
     const selSec = PART_SEC[st.sel];
-    ORDER.filter((k) => k !== 'years' || isB()).forEach((k) => p.append(secEl(k, k === selSec || k === 'layers')));
+    (isP() ? ['layers', 'palette', 'field', 'photo', 'line2', 'extra', 'line1', 'mark', 'stamps'] : ORDER.filter((k) => k !== 'years' || isB()))
+      .forEach((k) => p.append(secEl(k, k === selSec || k === 'layers')));
     p.append(h('div', { class: 'scroll-pad' })); // room to bring even the last section up to the top
   }
 
@@ -1138,12 +1226,27 @@
     ({ auto: buildAuto, guided: buildGuided, manual: buildManual, bulk: buildBulk })[st.mode](p);
     document.querySelectorAll('#modes button').forEach((b) => b.classList.toggle('on', b.dataset.mode === st.mode));
     document.querySelectorAll('#productSw button').forEach((b) => b.classList.toggle('on', b.dataset.product === PM.productOf(st.d)));
+    syncProductUi();
+  }
+  // Posters are paper: no felt or aged-felt views, no felt cut files, no bead charts.
+  function syncProductUi() {
+    const p = isP();
+    document.querySelectorAll('#viewSeg [data-view="felt"], #viewSeg [data-view="aged"]').forEach((b) => { b.hidden = p; });
+    const f = $('#exFormat');
+    if (f) {
+      [...f.options].forEach((o) => { if (['felt', 'aged', 'cut', 'chart'].includes(o.value)) o.hidden = p; });
+      if (p && ['felt', 'aged', 'cut', 'chart'].includes(f.value)) { f.value = 'png'; syncExportUi(); }
+    }
+    if (p && (st.view === 'felt' || st.view === 'aged')) {
+      st.view = 'flat'; document.querySelectorAll('#viewSeg button').forEach((x) => x.classList.toggle('on', x.dataset.view === 'flat'));
+    }
+    if ($('#exFormat') && $('#exFormat').value && ['printpdf', 'tiled', 'cut'].includes($('#exFormat').value)) syncExportUi();
   }
   function setProduct(prod) {
     if (PM.productOf(st.d) === prod) return;
-    const d = PM.auto.toProduct(clone(st.d), prod, { tpl: prod === 'banner' ? st.autoTplB : null, team: st.lastTeam, banner: bannerOpts() });
+    const d = PM.auto.toProduct(clone(st.d), prod, { tpl: prod === 'banner' ? st.autoTplB : null, team: st.lastTeam, banner: bannerOpts(), poster: posterOpts() });
     replaceDesign(d);
-    toast(prod === 'banner' ? 'Championship banner: add the title and years in Automatic, or click any part to edit it' : 'Back to the pennant', 3800);
+    toast(prod === 'poster' ? 'Poster: add a photo and a name in Automatic, or click any part to edit it' : prod === 'banner' ? 'Championship banner: add the title and years in Automatic, or click any part to edit it' : 'Back to the pennant', 3800);
   }
   function setMode(m) { st.mode = m; if (m === 'auto' || m === 'bulk') st.sel = null; buildPanel(); queueRender(); localStorage.setItem('pm_mode', m); }
 
@@ -1179,15 +1282,16 @@
       }
       if (C.contrast(t.fill, d.field.color) < 1.35 && t.o1.w === 0 && t.o2.w === 0) out.push({ msg: `${name} is hard to read on the felt.`, fixes: [['Add outline', () => { snapshot(true); t.o2 = { color: d.palette.primary, w: 4 }; buildPanel(); queueRender(); }]] });
     });
-    if (d.mark.show && !d.mark.src && st.mode !== 'bulk') out.push({ msg: 'No primary logo yet. Upload one, paste a link, or use Find.', fixes: [['Add logo', () => { st.sel = 'mark'; setMode('manual'); }]] });
+    if (PM.isPoster(d) && !d.pst.photo) out.push({ msg: 'No photo yet. Upload one or drop it on the poster.', fixes: [['Add photo', () => { st.sel = 'photo'; setMode('manual'); }]] });
+    else if (!PM.isPoster(d) && d.mark.show && !d.mark.src && st.mode !== 'bulk') out.push({ msg: 'No primary logo yet. Upload one, paste a link, or use Find.', fixes: [['Add logo', () => { st.sel = 'mark'; setMode('manual'); }]] });
     out.forEach((w) => box.append(h('div', { class: 'warn' }, h('span', {}, '⚠ ' + w.msg), ...w.fixes.map(([l, f]) => h('button', { onclick: f }, l)))));
   }
 
   // ---------- save / open / persist ----------
   // File name: "<line 1> <line 2> - <pennant style>", e.g. "Seattle Seahawks - Vintage Baseball"
   const fileBase = () => {
-    const parts = isB() ? [st.d.extra, st.d.line1, st.d.line2] : [st.d.line1, st.d.line2];
-    const words = parts.filter((l) => l.show !== false && l.text && !l.useImg).map((l) => l.text.trim()).join(' ') || st.d.name || (isB() ? 'Banner' : 'Pennant');
+    const parts = isP() ? [st.d.line2] : isB() ? [st.d.extra, st.d.line1, st.d.line2] : [st.d.line1, st.d.line2];
+    const words = parts.filter((l) => l.show !== false && l.text && !l.useImg).map((l) => l.text.trim()).join(' ') || st.d.name || (isP() ? 'Poster' : isB() ? 'Banner' : 'Pennant');
     const style = (PM.TEMPLATES[st.d.template] || {}).name || 'Pennant';
     return `${words} - ${style}`.replace(/[<>:"/\\|?*\u0000-\u001f]+/g, '').replace(/\s+/g, ' ').trim();
   };
@@ -1271,7 +1375,7 @@
     // phones: the pinned preview sits just under the (wrapping) header
     const topEl = $('.top'), setTop = () => document.documentElement.style.setProperty('--top-h', Math.round(topEl.getBoundingClientRect().height) + 'px');
     setTop(); if (window.ResizeObserver) new ResizeObserver(setTop).observe(topEl);
-    const slotAt = (e) => { const el = document.elementFromPoint(e.clientX, e.clientY); const part = el && el.closest && el.closest('#stage [data-part]'); return (part && IMG_SLOT[part.dataset.part]) ? part.dataset.part : 'mark'; };
+    const slotAt = (e) => { const el = document.elementFromPoint(e.clientX, e.clientY); const part = el && el.closest && el.closest('#stage [data-part]'); return (part && IMG_SLOT[part.dataset.part]) ? part.dataset.part : (isP() ? 'photo' : 'mark'); };
     dropTarget($('#stage'), slotAt);
     $('#stage').addEventListener('dragover', (e) => { if (isImgDrag(e)) $('#stageHint').textContent = 'Drop onto: ' + SLOT_NAME[slotAt(e)]; });
     $('#stage').addEventListener('dragleave', () => { $('#stageHint').textContent = ''; });

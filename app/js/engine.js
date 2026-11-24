@@ -419,9 +419,76 @@ window.PM = window.PM || {};
       },
     }),
   });
+  // ================= Posters =================
+  // 2:3 portrait posters in two 80s house styles. The photo fills a box; the name is line 2, a small caption
+  // is line 1, the signature is the extra line (a script font over the photo), the team logo is the mark,
+  // and the league / team logos are the stamps in a bottom corner.
+  const PGEO = { poster: true, product: 'poster', W: 1200, H: 1800, L: 0, R: 1200, T: 0, B: 1800,
+    top: 0, bottom: 1800, spineX: 0, bodyX: 0, tipX: 1200, tieTopY: 0, tieBottomY: 0 };
+  const pstDefaults = (extra) => Object.assign({
+    wordStyle: 'classic',
+    field: { margin: 0 },
+    spine: { show: false }, ties: { top: { show: false }, bottom: { show: false } },
+    maker: { show: false, x: 600, y: 1760 },
+  }, extra);
+  const pstText = (l, o) => Object.assign(l, { caps: false, smallCaps: false, italic: false, slant: 0, rotate: 0, tail: false,
+    o1: { color: l.o1.color, w: 0 }, o2: { color: l.o2.color, w: 0 }, shadow: Object.assign({}, l.shadow, { on: false }), ko: Object.assign({}, l.ko, { on: false }) }, o);
+  Object.assign(PM.TEMPLATES, {
+    // Color frame: a team-color border, the name in caps across the top, a thin keyline round the photo.
+    posterFrame: Object.assign({}, PGEO, {
+      name: 'Color Frame Poster (80s)',
+      box: { x: 70, y: 196, w: 1060, h: 1480 },
+      pattern() { return ''; },
+      defaults: pstDefaults({
+        pst: { keyOn: true, keyW: 5, band: 'top' },
+        line2: { x: 600, y: 152, size: 132, maxWidth: 1060, align: 'middle', show: true },
+        line1: { x: 70, y: 1752, size: 30, maxWidth: 700, align: 'start', show: false },
+        extra: { x: 200, y: 620, size: 92, maxWidth: 420, align: 'middle', show: false },
+        mark: { show: false, x: 1060, y: 1730, size: 90 },
+        stamps: { x: 860, y: 1736, items: [{ show: true, size: 70 }, { show: true, size: 70 }] },
+      }),
+      field: '#c8102e',
+      layout: null,
+      palette(d, p) {
+        const C = PM.colors;
+        // the name is the classic poster gold whenever it stands out on the frame, else a team color
+        const frame = p.primary, gold = ['#f2c230', p.secondary, p.tertiary, '#ffffff', '#141414'].find((c) => c && C.contrast(c, frame) >= 2.2) || '#ffffff';
+        d.field.color = frame; d.pst.keyColor = gold;
+        pstText(d.line2, { font: 'Jost Medium', fill: gold, caps: true, letterSpacing: 4 });
+        pstText(d.line1, { font: 'Jost Medium', fill: gold, caps: true, letterSpacing: 2 });
+        pstText(d.extra, { font: 'Mr Dafoe', fill: '#ffffff' });
+        d.mark.knockout.on = false; d.mark.ring.on = false; d.stamps.ko.on = false;
+      },
+    }),
+    // Classic white: white paper, the name in a classy serif at the top left, team logo top right,
+    // a white signature across the photo, small league logo and caption along the bottom.
+    posterWhite: Object.assign({}, PGEO, {
+      name: 'Classic White Poster (80s magazine)',
+      box: { x: 56, y: 214, w: 1088, h: 1436 },
+      pattern() { return ''; },
+      defaults: pstDefaults({
+        pst: { keyOn: false, keyW: 2, band: 'top' },
+        line2: { x: 70, y: 168, size: 120, maxWidth: 860, align: 'start', show: true },
+        line1: { x: 1140, y: 1700, size: 26, maxWidth: 640, align: 'end', show: true },
+        extra: { x: 300, y: 640, size: 96, maxWidth: 460, align: 'middle', show: true },
+        mark: { show: true, x: 1072, y: 112, size: 150 },
+        stamps: { x: 60, y: 1706, items: [{ show: true, size: 60 }, { show: false, size: 60 }] },
+      }),
+      field: '#fbfaf6',
+      layout: null,
+      palette(d, p) {
+        d.field.color = '#fbfaf6'; d.pst.keyColor = '#d9d5cc';
+        pstText(d.line2, { font: 'EB Garamond Medium', fill: '#161616', letterSpacing: 0 });
+        pstText(d.line1, { font: 'EB Garamond Italic', fill: '#3a3a3a', letterSpacing: 0 });
+        pstText(d.extra, { font: 'Mr Dafoe', fill: '#ffffff' });
+        d.mark.knockout.on = false; d.mark.ring.on = false; d.stamps.ko.on = false;
+      },
+    }),
+  });
   PM.isBanner = (d) => !!(PM.TEMPLATES[d && d.template] || {}).banner;
-  PM.productOf = (d) => (PM.isBanner(d) ? 'banner' : 'pennant');
-  PM.templatesFor = (product) => Object.entries(PM.TEMPLATES).filter(([, v]) => (product === 'banner') === !!v.banner);
+  PM.isPoster = (d) => !!(PM.TEMPLATES[d && d.template] || {}).poster;
+  PM.productOf = (d) => (PM.isPoster(d) ? 'poster' : PM.isBanner(d) ? 'banner' : 'pennant');
+  PM.templatesFor = (product) => Object.entries(PM.TEMPLATES).filter(([, v]) => (v.poster ? 'poster' : v.banner ? 'banner' : 'pennant') === product);
   PM.bannerBottomAt = bannerBottomAt;
 
   // Championship years "1986, 2004 2007" -> rows of years (perRow 0 = automatic).
@@ -479,7 +546,8 @@ window.PM = window.PM || {};
     const tpl = PM.TEMPLATES[key]; if (!tpl) return d;
     PM.fillMissing(d);
     const prevField = (PM.TEMPLATES[d.template] || {}).field;
-    const sameProduct = !!(PM.TEMPLATES[d.template] || {}).banner === !!tpl.banner;
+    const prodOf = (x) => (x ? (x.poster ? 'poster' : x.banner ? 'banner' : 'pennant') : 'pennant');
+    const sameProduct = prodOf(PM.TEMPLATES[d.template]) === prodOf(tpl);
     d.template = key;
     const defs = JSON.parse(JSON.stringify(tpl.defaults));
     // locked layers keep their position and size
@@ -505,6 +573,8 @@ window.PM = window.PM || {};
     letterSpacing: 0, rotate: 0, slant: 0, italic: false,
     // caps: every letter a capital; smallCaps: letters typed in lowercase become smaller capitals
     caps: false, smallCaps: false,
+    // where x sits on the line: 'middle' (centre), 'start' (left edge) or 'end' (right edge)
+    align: 'middle',
     o1: { color: PM.DEFAULT_FIELD, w: 0 }, o2: { color: '#3a3839', w: 0 },
     shadow: { on: false, color: '#000000', dx: 5, dy: 5 }, tail: false,
     ko: PM.defaultKo(false),
@@ -546,6 +616,8 @@ window.PM = window.PM || {};
     texts: {},
     // Layers panel state: lock = fixed in place; move / color = link group ('' or 'A'..'D')
     layers: {},
+    // posters: the photo (data URL), its aspect, zoom and focus point (0..1), keyline round the photo
+    pst: { photo: null, photoAR: 0, zoom: 1, fx: 0.5, fy: 0.5, keyOn: true, keyColor: '#f2c230', keyW: 5 },
     // stacking order of the parts on the felt, bottom to top (see PM.stackOf)
     stack: ['stamps', 'mark', 'extra', 'line2', 'line1', 'years', 'maker'],
   });
@@ -556,6 +628,10 @@ window.PM = window.PM || {};
   // ---------- Geometry helpers ----------
   PM.geom = (d) => {
     const t = PM.TEMPLATES[d.template] || PM.TEMPLATES.classic;
+    if (t.poster) {
+      const body = [[0, 0], [t.W, 0], [t.W, t.H], [0, t.H]];
+      return { t, poster: true, cx: t.W / 2, tipX: t.W, tipY: t.H / 2, body, inset: body, box: PM.posterBox(d), bottomAt: () => t.H };
+    }
     if (t.banner) {
       const shape = (d.bnr && d.bnr.shape) || 'swallow', m = d.field.margin;
       return { t, banner: true, shape, cx: (t.L + t.R) / 2, tipX: t.R, tipY: (t.T + t.B) / 2,
@@ -723,7 +799,20 @@ window.PM = window.PM || {};
     }
     return ch;
   };
+  // Posters: lettering stays inside the paper (a little room at the edges); nothing else needs fitting.
+  PM.fitPoster = (d, keys) => {
+    const t = PM.TEMPLATES[d.template], pad = 40; let ch = false;
+    for (const k of ['line1', 'line2', 'extra']) {
+      const l = d[k]; if (!keys.includes(k) || !l.show || !l.text || PM.lineUsesImg(l)) continue;
+      const a = l.align || 'middle';
+      const room = a === 'start' ? t.W - pad - l.x : a === 'end' ? l.x - pad : 2 * Math.min(l.x - pad, t.W - pad - l.x);
+      const w = PM.measure(l, PM.fitSize(l));
+      if (w > room + 0.5) { l.maxWidth = Math.max(60, Math.floor(Math.min(l.maxWidth || w, room))); ch = true; }
+    }
+    return ch;
+  };
   PM.fitToPennant = async (d, keys = ['mark', 'line1', 'line2', 'extra', 'years']) => {
+    if (PM.isPoster(d)) { if (PM.ensureFonts) await PM.ensureFonts(d); return PM.fitPoster(d, keys); }
     if (PM.isBanner(d)) {
       const ar = await aspectOf(d.mark && d.mark.src);
       if (PM.ensureFonts) await PM.ensureFonts(d);
@@ -783,6 +872,10 @@ window.PM = window.PM || {};
   }
 
   function textPart(t, part) {
+    if (t.align && t.align !== 'middle' && t.show && t.text && !PM.lineUsesImg(t)) {
+      const w0 = PM.measure(t, PM.fitSize(t));
+      t = Object.assign({}, t, { x: t.align === 'start' ? t.x + w0 / 2 : t.x - w0 / 2, align: 'middle' });
+    }
     if (PM.lineUsesImg(t)) return linePic(t, part);
     if (!t.show || !t.text) return '';
     const size = PM.fitSize(t);
@@ -886,6 +979,36 @@ window.PM = window.PM || {};
     }
     return s;
   }
+  // ---------- Poster pieces ----------
+  // The photo box for a poster (template box; the design can't move it yet).
+  PM.posterBox = (d) => Object.assign({}, (PM.TEMPLATES[d.template] || {}).box || { x: 60, y: 200, w: 1080, h: 1480 });
+  // Where the photo goes inside its box: cover the box, then zoom and slide to the focus point.
+  PM.posterPhotoRect = (d) => {
+    const b = PM.posterBox(d), p = d.pst || {}, ar = p.photoAR || 1.5;
+    const z = Math.max(1, p.zoom || 1);
+    let iw = Math.max(b.w, b.h * ar) * z, ih = iw / ar;
+    if (ih < b.h * z) { ih = b.h * z; iw = ih * ar; }
+    const fx = p.fx ?? 0.5, fy = p.fy ?? 0.5;
+    return { x: b.x + (b.w - iw) * fx, y: b.y + (b.h - ih) * fy, w: iw, h: ih };
+  };
+  function posterBase(d, g, has) {
+    const t = g.t, b = g.box, p = d.pst || {}; let s = '';
+    if (has('field')) s += `<rect data-part="field" x="0" y="0" width="${t.W}" height="${t.H}" fill="${d.field.color}"/>`;
+    if (has('stripes')) {
+      s += `<defs><clipPath id="pstClip"><rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}"/></clipPath></defs><g data-part="photo">`;
+      if (p.photo) {
+        const r = PM.posterPhotoRect(d);
+        s += `<g clip-path="url(#pstClip)"><image href="${p.photo}" x="${r.x.toFixed(1)}" y="${r.y.toFixed(1)}" width="${r.w.toFixed(1)}" height="${r.h.toFixed(1)}" preserveAspectRatio="none"/></g>`;
+      } else {
+        s += `<rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" fill="#8c8a84"/>` +
+          `<text x="${b.x + b.w / 2}" y="${b.y + b.h / 2}" text-anchor="middle" font-family="Oswald, sans-serif" font-size="54" fill="#efece4" letter-spacing="3">ADD A PHOTO</text>` +
+          `<text x="${b.x + b.w / 2}" y="${b.y + b.h / 2 + 60}" text-anchor="middle" font-family="Oswald, sans-serif" font-size="30" fill="#e2ded4">Click here, then Upload (or drop a photo on it)</text>`;
+      }
+      if (p.keyOn && p.keyW > 0) s += `<rect x="${b.x - p.keyW / 2}" y="${b.y - p.keyW / 2}" width="${b.w + p.keyW}" height="${b.h + p.keyW}" fill="none" stroke="${p.keyColor}" stroke-width="${p.keyW}"/>`;
+      s += `</g>`;
+    }
+    return s;
+  }
   // Common size for every row of years (each row fits maxWidth; all rows share the smallest size).
   PM.yearsSize = (d) => {
     const y = d.years; let size = y.size;
@@ -913,7 +1036,8 @@ window.PM = window.PM || {};
     const has = (p) => parts.has(p);
     let s = '';
 
-    if (t.banner) s += bannerBase(d, g, has, opts);
+    if (t.poster) s += posterBase(d, g, has);
+    else if (t.banner) s += bannerBase(d, g, has, opts);
     else {
       // Ties (behind spine). Chevron = the flat graphic; loops = folded fabric tabs (felt look).
       const loops = (opts.tieStyle || 'chevron') === 'loops';
@@ -978,7 +1102,7 @@ window.PM = window.PM || {};
   PM.designColors = (d) => {
     PM.fillMissing(d);
     const set = new Set([d.field.color, d.spine.outer, d.spine.inner, d.spine.stitch, d.stripes.colorA, d.stripes.colorB,
-      d.ties.top.color, d.ties.bottom.color, d.hoops.wedge, d.hoops.stripe, d.hockey.color, d.edge.colorA, d.edge.colorB, d.split.top, d.split.bottom, d.bands.colorA, d.bands.colorB, d.grid.field, d.grid.endzone, d.bnr.colorA, d.bnr.colorB, d.years.fill, d.line1.fill, d.line2.fill, d.line2.o1.color, d.line2.o2.color, d.line1.o1.color]
+      d.ties.top.color, d.ties.bottom.color, d.hoops.wedge, d.hoops.stripe, d.hockey.color, d.edge.colorA, d.edge.colorB, d.split.top, d.split.bottom, d.bands.colorA, d.bands.colorB, d.grid.field, d.grid.endzone, d.bnr.colorA, d.bnr.colorB, d.years.fill, d.line1.fill, d.line2.fill, d.line2.o1.color, d.line2.o2.color, d.line1.o1.color, d.pst && d.pst.keyColor]
       .map(PM.colors.norm).filter(Boolean));
     return [...set];
   };

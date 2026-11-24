@@ -89,3 +89,12 @@ Templates live in `app/js/engine.js` → `PM.TEMPLATES`. Part rendering reads it
 On Node 26, Electron's own unzip step stalls during `npm install`. If `node_modules/electron/dist/electron.exe`
 is missing, unzip `%LOCALAPPDATA%\electron\Cache\...\electron-v33.4.11-win32-x64.zip` into that folder and
 write `electron.exe` into `node_modules/electron/path.txt`. Then `npm run build:win`.
+
+## Posters
+
+A third product behind the **Pennant | Banner | Poster** switch: 2:3 portrait posters in two 80s house styles.
+
+- **Color Frame:** a team-color border, the name in capitals across the top (Jost Medium, classic poster gold when it reads), a thin keyline round the photo, corner logos bottom right.
+- **Classic White:** white paper, the name in a serif at the top left (EB Garamond), the team logo top right, a white script signature across the photo, a small league logo and an italic caption along the bottom.
+
+Add a photo (upload, or drop it anywhere on the poster). It is shrunk to 2000 px and always fills its box; Photo → Zoom / Left-right / Up-down frame it. Automatic takes a name, signature and caption, and a team lookup fills the colors and logos. Print sizes run from 8 x 12 in to 24 x 36 in; felt views, felt cut files and bead charts are hidden for posters. Use your own photos or ones you have the rights to.
