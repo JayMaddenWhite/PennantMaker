@@ -12,7 +12,8 @@ window.PM = window.PM || {};
   P.BLEED = 0.125;
   P.BANNER_SIZES = [['12', '12 in tall (desk)'], ['18', '18 in tall'], ['24', '24 in tall (2 ft)'], ['36', '36 in tall (3 ft)'], ['48', '48 in tall (4 ft)'], ['72', '72 in tall (6 ft rafter)']];
   P.POSTER_SIZES = [['12', 'Small'], ['18', 'Medium'], ['24', 'Large'], ['36', 'Wall poster']];
-  P.sizesFor = (d) => (PM.isPoster(d) ? P.POSTER_SIZES : PM.isBanner(d) ? P.BANNER_SIZES : P.SIZES);
+  P.CARD_SIZES = [['3.5', 'Trading card'], ['7', 'Jumbo card'], ['10.5', 'Display card']];
+  P.sizesFor = (d) => (PM.isCard(d) ? P.CARD_SIZES : PM.isPoster(d) ? P.POSTER_SIZES : PM.isBanner(d) ? P.BANNER_SIZES : P.SIZES);
 
   // Geometry of the printed piece in design units: spine left edge to tip, top to bottom (ties are sewn on, not printed).
   P.piece = (d) => {

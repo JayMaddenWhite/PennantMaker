@@ -98,3 +98,16 @@ A third product behind the **Pennant | Banner | Poster** switch: 2:3 portrait po
 - **Classic White:** white paper, the name in a serif at the top left (EB Garamond), the team logo top right, a white script signature across the photo, a small league logo and an italic caption along the bottom.
 
 Add a photo (upload, or drop it anywhere on the poster). It is shrunk to 2000 px and always fills its box; Photo → Zoom / Left-right / Up-down frame it. Automatic takes a name, signature and caption, and a team lookup fills the colors and logos. Print sizes run from 8 x 12 in to 24 x 36 in; felt views, felt cut files and bead charts are hidden for posters. Use your own photos or ones you have the rights to.
+
+Posters also come **wide** (landscape, for sideways action shots and team pictures), and the team logo can sit in its usual spot, **see-through in a corner of the photo**, solid in a corner, or not at all (Automatic → Team logo; Manual → Team logo → See-through and the corner arrows).
+
+## Trading cards
+
+A fourth product behind the **Card** switch: 2.5 x 3.5 in cards (5:7) using the same photo tools as posters. The name sits on a team-color band, with the position, team name, team logo, an optional league logo and an optional set logo of your own.
+
+- **Wood Grain '87 (baseball):** the default. A wood-grain border made from noise, the team logo in a white circle at the top left, the name on a team-color plank.
+- **Parquet Floor '87 (basketball):** the same card on a gym-floor border. Automatic picks it for basketball teams.
+- **Silver Arch (late-80s hoops):** brushed silver, the photo arched across the top, a team-color name band.
+- **Clean White (late-80s premium):** white border, a thin team line round the photo, a team-color name bar.
+
+Print sizes: trading card (2.5 x 3.5 in), jumbo (5 x 7 in) and display (7.5 x 10.5 in), each with bleed and a cut line.

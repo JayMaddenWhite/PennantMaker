@@ -423,8 +423,12 @@ window.PM = window.PM || {};
   // 2:3 portrait posters in two 80s house styles. The photo fills a box; the name is line 2, a small caption
   // is line 1, the signature is the extra line (a script font over the photo), the team logo is the mark,
   // and the league / team logos are the stamps in a bottom corner.
-  const PGEO = { poster: true, product: 'poster', W: 1200, H: 1800, L: 0, R: 1200, T: 0, B: 1800,
-    top: 0, bottom: 1800, spineX: 0, bodyX: 0, tipX: 1200, tieTopY: 0, tieBottomY: 0 };
+  // Paper products (posters and cards) share the photo machinery; `product` tells them apart.
+  const paperGeo = (W, H, product) => ({ poster: true, product, W, H, L: 0, R: W, T: 0, B: H,
+    top: 0, bottom: H, spineX: 0, bodyX: 0, tipX: W, tieTopY: 0, tieBottomY: 0 });
+  const PGEO = paperGeo(1200, 1800, 'poster'), PGEO_WIDE = paperGeo(1800, 1200, 'poster');
+  // A see-through team logo tucked in a corner of the photo (posters offer it; 1 = solid).
+  PM.LOGO_CORNERS = [['off', 'No team logo'], ['faint', 'See-through, in a corner'], ['solid', 'Solid, in a corner']];
   const pstDefaults = (extra) => Object.assign({
     wordStyle: 'classic',
     field: { margin: 0 },
@@ -485,10 +489,178 @@ window.PM = window.PM || {};
       },
     }),
   });
+  // Wide (landscape) versions: the same two looks, made for action shots that run sideways and team pictures.
+  Object.assign(PM.TEMPLATES, {
+    posterFrameWide: Object.assign({}, PM.TEMPLATES.posterFrame, PGEO_WIDE, {
+      name: 'Color Frame Poster – wide (team photo)',
+      box: { x: 70, y: 190, w: 1660, h: 900 },
+      defaults: pstDefaults({
+        pst: { keyOn: true, keyW: 5, band: 'top' },
+        line2: { x: 900, y: 148, size: 128, maxWidth: 1600, align: 'middle', show: true },
+        line1: { x: 70, y: 1158, size: 30, maxWidth: 1000, align: 'start', show: false },
+        extra: { x: 380, y: 520, size: 92, maxWidth: 460, align: 'middle', show: false },
+        mark: { show: false, x: 1640, y: 1000, size: 120 },
+        stamps: { x: 1500, y: 1145, items: [{ show: true, size: 66 }, { show: true, size: 66 }] },
+        maker: { show: false, x: 900, y: 1160 },
+      }),
+    }),
+    posterWhiteWide: Object.assign({}, PM.TEMPLATES.posterWhite, PGEO_WIDE, {
+      name: 'Classic White Poster – wide (team photo)',
+      box: { x: 56, y: 200, w: 1688, h: 880 },
+      defaults: pstDefaults({
+        pst: { keyOn: false, keyW: 2, band: 'top' },
+        line2: { x: 70, y: 158, size: 116, maxWidth: 1300, align: 'start', show: true },
+        line1: { x: 1740, y: 1148, size: 26, maxWidth: 900, align: 'end', show: true },
+        extra: { x: 360, y: 560, size: 96, maxWidth: 500, align: 'middle', show: true },
+        mark: { show: true, x: 1672, y: 104, size: 140 },
+        stamps: { x: 60, y: 1150, items: [{ show: true, size: 56 }, { show: false, size: 56 }] },
+        maker: { show: false, x: 900, y: 1160 },
+      }),
+    }),
+  });
+
+  // ================= Trading cards =================
+  // 2.5 x 3.5 in cards (5:7). Same parts as a poster: photo, name (line 2), position (line 1), team name (extra),
+  // team logo (mark), a small league logo (stamps), and a set logo of your own (maker's mark).
+  const CGEO = paperGeo(1000, 1400, 'card');
+  const cardDefaults = (extra) => pstDefaults(Object.assign({
+    stamps: { x: 880, y: 1330, items: [{ show: false, size: 60 }, { show: false, size: 60 }] },
+    maker: { show: false, x: 880, y: 140, size: 90 },
+  }, extra));
+  // Wood grain from noise: long streaks running across, darker rings in between.
+  const woodFill = (id, x, y, w, h, base, dark, seed = 3, freq = '0.0035 0.11') =>
+    `<defs><filter id="${id}" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">` +
+    `<feTurbulence type="fractalNoise" baseFrequency="${freq}" numOctaves="4" seed="${seed}" result="n"/>` +
+    `<feColorMatrix in="n" type="matrix" values="0 0 0 0 ${PM.colors ? PM.colors.rgb(dark)[0] / 255 : 0.2}  0 0 0 0 ${PM.colors ? PM.colors.rgb(dark)[1] / 255 : 0.1}  0 0 0 0 ${PM.colors ? PM.colors.rgb(dark)[2] / 255 : 0.05}  2.4 0 0 0 -0.95"/></filter></defs>` +
+    `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${base}"/><rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#000" filter="url(#${id})"/>`;
+  // Basketball floor: blocks of five boards, each block turned 90 degrees from its neighbours.
+  const parquetFill = (x, y, w, h, colors, block = 180) => {
+    const n = 5, sl = block / n; let cells = '';
+    for (let r = 0; r * block < h; r++) for (let c = 0; c * block < w; c++) {
+      const bx = x + c * block, by = y + r * block, across = (r + c) % 2 === 0;
+      for (let i = 0; i < n; i++) {
+        const col = colors[(r * 7 + c * 3 + i * 2) % colors.length];
+        cells += across ? `<rect x="${bx}" y="${(by + i * sl).toFixed(1)}" width="${block}" height="${sl.toFixed(1)}" fill="${col}" stroke="#7a5230" stroke-width="0.8"/>`
+          : `<rect x="${(bx + i * sl).toFixed(1)}" y="${by}" width="${sl.toFixed(1)}" height="${block}" fill="${col}" stroke="#7a5230" stroke-width="0.8"/>`;
+      }
+    }
+    return `<defs><clipPath id="parqClip"><rect x="${x}" y="${y}" width="${w}" height="${h}"/></clipPath></defs><g clip-path="url(#parqClip)">${cells}</g>` +
+      woodFill('parqGrain', x, y, w, h, 'none', '#4a2c12', 9, '0.02 0.3').replace(/<rect x="[^"]*" y="[^"]*" width="[^"]*" height="[^"]*" fill="none"\/>/, '');
+  };
+  const cardText = (d, { name, pos, team, nameFill, posFill, teamFill }) => {
+    pstText(d.line2, Object.assign({ caps: true, letterSpacing: 1 }, name, { fill: nameFill }));
+    pstText(d.line1, Object.assign({ caps: true, letterSpacing: 2 }, pos, { fill: posFill }));
+    pstText(d.extra, Object.assign({ caps: true, letterSpacing: 1 }, team, { fill: teamFill }));
+    d.stamps.ko.on = false; d.mark.ring.on = false;
+  };
+  Object.assign(PM.TEMPLATES, {
+    // '87-style: a wood-grain border, team logo in a white circle at the top left, the name on a team-color plank
+    cardWood: Object.assign({}, CGEO, {
+      name: "Wood Grain '87 (baseball)",
+      box: { x: 72, y: 72, w: 856, h: 1056 },
+      paper(d, g) { return woodFill('woodGrain', 0, 0, g.t.W, g.t.H, d.pst.paperA || '#8a5a32', d.pst.paperB || '#3d2410', 3); },
+      overlay(d) {
+        const c1 = d.pst.bandColor, c2 = d.pst.bandColor2;
+        return `<g data-part="band"><rect x="430" y="1092" width="500" height="104" fill="${c1}" stroke="${c2}" stroke-width="6"/></g>`;
+      },
+      pattern() { return ''; },
+      defaults: cardDefaults({
+        pst: { keyOn: true, keyW: 8 },
+        line2: { x: 680, y: 1168, size: 66, maxWidth: 456, align: 'middle', show: true },
+        line1: { x: 928, y: 1270, size: 38, maxWidth: 520, align: 'end', show: true },
+        extra: { x: 72, y: 1270, size: 38, maxWidth: 360, align: 'start', show: false },
+        mark: { show: true, x: 150, y: 150, size: 190 },
+      }),
+      field: '#8a5a32', layout: null,
+      palette(d, p) {
+        const C = PM.colors, band = p.primary, onBand = [p.secondary, '#ffffff', '#141414'].find((c) => c && C.contrast(c, band) >= 2.4) || '#ffffff';
+        Object.assign(d.pst, { paperA: '#8a5a32', paperB: '#3d2410', keyColor: band, bandColor: band, bandColor2: p.secondary && C.contrast(p.secondary, band) > 1.3 ? p.secondary : '#ffffff' });
+        d.field.color = '#8a5a32';
+        cardText(d, { name: { font: 'Barlow Condensed' }, pos: { font: 'Barlow Condensed' }, team: { font: 'Barlow Condensed' }, nameFill: onBand, posFill: '#f6ecd6', teamFill: '#f6ecd6' });
+        d.mark.knockout = { on: true, shape: 'circle', color: '#ffffff', w: 14, radius: 18 };
+      },
+    }),
+    // the same card for basketball: a parquet floor instead of wood grain
+    cardParquet: Object.assign({}, CGEO, {
+      name: "Parquet Floor '87 (basketball)",
+      box: { x: 72, y: 72, w: 856, h: 1056 },
+      paper(d, g) { return parquetFill(0, 0, g.t.W, g.t.H, ['#c8955a', '#b98447', '#d4a46a', '#bf8c50', '#ad7a40']); },
+      overlay(d) { return PM.TEMPLATES.cardWood.overlay(d); },
+      pattern() { return ''; },
+      defaults: cardDefaults({
+        pst: { keyOn: true, keyW: 8 },
+        line2: { x: 680, y: 1168, size: 66, maxWidth: 456, align: 'middle', show: true },
+        line1: { x: 928, y: 1270, size: 38, maxWidth: 520, align: 'end', show: true },
+        extra: { x: 72, y: 1270, size: 38, maxWidth: 360, align: 'start', show: false },
+        mark: { show: true, x: 150, y: 150, size: 190 },
+      }),
+      field: '#c8955a', layout: null,
+      palette(d, p) {
+        PM.TEMPLATES.cardWood.palette(d, p);
+        d.field.color = '#c8955a';
+        d.line1.fill = '#2a1a0c'; d.extra.fill = '#2a1a0c';
+      },
+    }),
+    // late-80s hoops style: brushed silver, the photo arched across the top, the name on a team-color band
+    cardSilver: Object.assign({}, CGEO, {
+      name: 'Silver Arch (late-80s hoops)',
+      box: { x: 80, y: 80, w: 840, h: 1000 },
+      photoShape: 'arch',
+      paper(d, g) {
+        const t = g.t;
+        return `<defs><linearGradient id="silverG" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f1f2f4"/><stop offset="0.35" stop-color="#b9bdc4"/><stop offset="0.55" stop-color="#e6e8eb"/><stop offset="0.8" stop-color="#a7acb4"/><stop offset="1" stop-color="#d9dce0"/></linearGradient></defs>` +
+          `<rect x="0" y="0" width="${t.W}" height="${t.H}" fill="url(#silverG)"/>`;
+      },
+      overlay(d) { return `<g data-part="band"><rect x="80" y="1100" width="840" height="120" fill="${d.pst.bandColor}"/><rect x="80" y="1220" width="840" height="10" fill="${d.pst.bandColor2}"/></g>`; },
+      pattern() { return ''; },
+      defaults: cardDefaults({
+        pst: { keyOn: true, keyW: 6 },
+        line2: { x: 500, y: 1188, size: 76, maxWidth: 780, align: 'middle', show: true },
+        line1: { x: 90, y: 1306, size: 40, maxWidth: 560, align: 'start', show: true },
+        extra: { x: 90, y: 1356, size: 30, maxWidth: 560, align: 'start', show: true },
+        mark: { show: true, x: 840, y: 1310, size: 140 },
+      }),
+      field: '#c9ccd1', layout: null,
+      palette(d, p) {
+        const C = PM.colors, band = p.primary, onBand = [p.secondary, '#ffffff', '#141414'].find((c) => c && C.contrast(c, band) >= 2.4) || '#ffffff';
+        Object.assign(d.pst, { keyColor: '#8d929a', bandColor: band, bandColor2: p.secondary || '#141414' });
+        d.field.color = '#c9ccd1';
+        cardText(d, { name: { font: 'Oswald' }, pos: { font: 'Oswald' }, team: { font: 'Oswald Medium' }, nameFill: onBand, posFill: '#1d1f23', teamFill: '#3b3f46' });
+        d.mark.knockout = { on: false, shape: 'outline', color: '#ffffff', w: 6, radius: 18 };
+      },
+    }),
+    // clean premium look: white border, thin team line round the photo, a team-color name bar underneath
+    cardClean: Object.assign({}, CGEO, {
+      name: 'Clean White (late-80s premium)',
+      box: { x: 60, y: 60, w: 880, h: 1100 },
+      paper() { return ''; },
+      overlay(d) { return `<g data-part="band"><rect x="60" y="1178" width="880" height="112" fill="${d.pst.bandColor}"/></g>`; },
+      pattern() { return ''; },
+      defaults: cardDefaults({
+        pst: { keyOn: true, keyW: 6 },
+        line2: { x: 86, y: 1256, size: 70, maxWidth: 560, align: 'start', show: true },
+        line1: { x: 914, y: 1252, size: 38, maxWidth: 300, align: 'end', show: true },
+        extra: { x: 500, y: 1350, size: 34, maxWidth: 840, align: 'middle', show: true },
+        mark: { show: true, x: 860, y: 140, size: 140 },
+      }),
+      field: '#fbfaf6', layout: null,
+      palette(d, p) {
+        const C = PM.colors, band = p.primary, onBand = [p.secondary, '#ffffff', '#141414'].find((c) => c && C.contrast(c, band) >= 2.4) || '#ffffff';
+        Object.assign(d.pst, { keyColor: band, bandColor: band, bandColor2: p.secondary || band });
+        d.field.color = '#fbfaf6';
+        cardText(d, { name: { font: 'Barlow Semi Condensed' }, pos: { font: 'Barlow Semi Condensed' }, team: { font: 'Barlow Semi Condensed' }, nameFill: onBand, posFill: onBand, teamFill: '#2a2a2a' });
+        d.mark.knockout = { on: false, shape: 'outline', color: '#ffffff', w: 6, radius: 18 };
+      },
+    }),
+  });
+
   PM.isBanner = (d) => !!(PM.TEMPLATES[d && d.template] || {}).banner;
+  // "poster" here means any paper product with a photo (posters and cards)
   PM.isPoster = (d) => !!(PM.TEMPLATES[d && d.template] || {}).poster;
-  PM.productOf = (d) => (PM.isPoster(d) ? 'poster' : PM.isBanner(d) ? 'banner' : 'pennant');
-  PM.templatesFor = (product) => Object.entries(PM.TEMPLATES).filter(([, v]) => (v.poster ? 'poster' : v.banner ? 'banner' : 'pennant') === product);
+  PM.isCard = (d) => (PM.TEMPLATES[d && d.template] || {}).product === 'card';
+  const productOfTpl = (v) => (v.poster ? v.product || 'poster' : v.banner ? 'banner' : 'pennant');
+  PM.productOf = (d) => productOfTpl(PM.TEMPLATES[d && d.template] || PM.TEMPLATES.classic);
+  PM.templatesFor = (product) => Object.entries(PM.TEMPLATES).filter(([, v]) => productOfTpl(v) === product);
   PM.bannerBottomAt = bannerBottomAt;
 
   // Championship years "1986, 2004 2007" -> rows of years (perRow 0 = automatic).
@@ -546,7 +718,7 @@ window.PM = window.PM || {};
     const tpl = PM.TEMPLATES[key]; if (!tpl) return d;
     PM.fillMissing(d);
     const prevField = (PM.TEMPLATES[d.template] || {}).field;
-    const prodOf = (x) => (x ? (x.poster ? 'poster' : x.banner ? 'banner' : 'pennant') : 'pennant');
+    const prodOf = (x) => (x ? (x.poster ? x.product || 'poster' : x.banner ? 'banner' : 'pennant') : 'pennant');
     const sameProduct = prodOf(PM.TEMPLATES[d.template]) === prodOf(tpl);
     d.template = key;
     const defs = JSON.parse(JSON.stringify(tpl.defaults));
@@ -617,7 +789,8 @@ window.PM = window.PM || {};
     // Layers panel state: lock = fixed in place; move / color = link group ('' or 'A'..'D')
     layers: {},
     // posters: the photo (data URL), its aspect, zoom and focus point (0..1), keyline round the photo
-    pst: { photo: null, photoAR: 0, zoom: 1, fx: 0.5, fy: 0.5, keyOn: true, keyColor: '#f2c230', keyW: 5 },
+    pst: { photo: null, photoAR: 0, zoom: 1, fx: 0.5, fy: 0.5, keyOn: true, keyColor: '#f2c230', keyW: 5,
+      bandColor: '#c8102e', bandColor2: '#ffffff', paperA: '#8a5a32', paperB: '#3d2410', logoCorner: 'off' },
     // stacking order of the parts on the felt, bottom to top (see PM.stackOf)
     stack: ['stamps', 'mark', 'extra', 'line2', 'line1', 'years', 'maker'],
   });
@@ -991,21 +1164,28 @@ window.PM = window.PM || {};
     const fx = p.fx ?? 0.5, fy = p.fy ?? 0.5;
     return { x: b.x + (b.w - iw) * fx, y: b.y + (b.h - ih) * fy, w: iw, h: ih };
   };
+  // The photo's outline: a plain box, or a box with an arched top.
+  PM.photoPath = (t, b) => {
+    if (t.photoShape === 'arch') { const R = b.w * 0.3; return `M${b.x},${b.y + b.h} V${b.y + R} A${b.w / 2},${R} 0 0 1 ${b.x + b.w},${b.y + R} V${b.y + b.h} Z`; }
+    return `M${b.x},${b.y} H${b.x + b.w} V${b.y + b.h} H${b.x} Z`;
+  };
   function posterBase(d, g, has) {
     const t = g.t, b = g.box, p = d.pst || {}; let s = '';
-    if (has('field')) s += `<rect data-part="field" x="0" y="0" width="${t.W}" height="${t.H}" fill="${d.field.color}"/>`;
+    if (has('field')) s += `<g data-part="field"><rect x="0" y="0" width="${t.W}" height="${t.H}" fill="${d.field.color}"/>${t.paper ? t.paper(d, g) : ''}</g>`;
+    const shape = PM.photoPath(t, b);
     if (has('stripes')) {
-      s += `<defs><clipPath id="pstClip"><rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}"/></clipPath></defs><g data-part="photo">`;
+      s += `<defs><clipPath id="pstClip"><path d="${shape}"/></clipPath></defs><g data-part="photo">`;
       if (p.photo) {
         const r = PM.posterPhotoRect(d);
         s += `<g clip-path="url(#pstClip)"><image href="${p.photo}" x="${r.x.toFixed(1)}" y="${r.y.toFixed(1)}" width="${r.w.toFixed(1)}" height="${r.h.toFixed(1)}" preserveAspectRatio="none"/></g>`;
       } else {
-        s += `<rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" fill="#8c8a84"/>` +
+        s += `<path d="${shape}" fill="#8c8a84"/>` +
           `<text x="${b.x + b.w / 2}" y="${b.y + b.h / 2}" text-anchor="middle" font-family="Oswald, sans-serif" font-size="54" fill="#efece4" letter-spacing="3">ADD A PHOTO</text>` +
-          `<text x="${b.x + b.w / 2}" y="${b.y + b.h / 2 + 60}" text-anchor="middle" font-family="Oswald, sans-serif" font-size="30" fill="#e2ded4">Click here, then Upload (or drop a photo on it)</text>`;
+          `<text x="${b.x + b.w / 2}" y="${b.y + b.h / 2 + 60}" text-anchor="middle" font-family="Oswald, sans-serif" font-size="${Math.round(Math.min(30, b.w / 26))}" fill="#e2ded4">Click here, then Upload (or drop a photo on it)</text>`;
       }
-      if (p.keyOn && p.keyW > 0) s += `<rect x="${b.x - p.keyW / 2}" y="${b.y - p.keyW / 2}" width="${b.w + p.keyW}" height="${b.h + p.keyW}" fill="none" stroke="${p.keyColor}" stroke-width="${p.keyW}"/>`;
+      if (p.keyOn && p.keyW > 0) s += `<path d="${shape}" fill="none" stroke="${p.keyColor}" stroke-width="${p.keyW}" stroke-linejoin="miter"/>`;
       s += `</g>`;
+      if (t.overlay) s += t.overlay(d, g);
     }
     return s;
   }
@@ -1082,7 +1262,11 @@ window.PM = window.PM || {};
           });
           return o + `</g>`;
         },
-        mark: () => (d.mark.show ? imagePart('mark', d.mark.src, d.mark.x, d.mark.y, d.mark.size, d.mark.knockout, d.mark.ring, ph, 'PRIMARY MARK') : ''),
+        mark: () => {
+          if (!d.mark.show) return '';
+          const m = imagePart('mark', d.mark.src, d.mark.x, d.mark.y, d.mark.size, d.mark.knockout, d.mark.ring, ph, 'PRIMARY MARK');
+          return d.mark.opacity != null && d.mark.opacity < 1 ? `<g opacity="${d.mark.opacity}">${m}</g>` : m;
+        },
         extra: () => textPart(d.extra, 'extra'),
         line2: () => textPart(d.line2, 'line2'),
         line1: () => textPart(d.line1, 'line1'),

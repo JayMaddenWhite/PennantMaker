@@ -34,7 +34,9 @@
   st.banner = st.banner || { kicker: '', title: 'CHAMPIONS', years: '' };
   st.autoTplB = st.autoTplB || 'bannerRafter';
   const isB = () => PM.isBanner(st.d);
-  const isP = () => PM.isPoster(st.d);
+  const isP = () => PM.isPoster(st.d);      // posters and cards (paper with a photo)
+  const isC = () => PM.isCard(st.d);
+  const CARD_NAMES = { line2: 'Name', line1: 'Position', extra: 'Team name', mark: 'Team logo', stamps: 'League logo', maker: 'Set logo', field: 'Border & photo' };
   st.poster = st.poster || { player: '', signature: '', caption: '' };
   // what each part is called on a poster
   const POSTER_NAMES = { line2: 'Name', line1: 'Caption', extra: 'Signature', mark: 'Team logo', stamps: 'Corner logos', maker: "Maker's mark", field: 'Paper / frame & photo' };
@@ -193,7 +195,7 @@
   }
 
   // ---------- click & drag on the preview ----------
-  const PART_SEC = { photo: 'photo', field: 'field', spine: 'spine', stitch: 'spine', ties: 'ties', tieTop: 'ties', tieBottom: 'ties', pattern: 'pattern', stripes: 'pattern', stamps: 'stamps', stamp1: 'stamps', stamp2: 'stamps', mark: 'mark', line1: 'line1', line2: 'line2', extra: 'extra', maker: 'maker', years: 'years' };
+  const PART_SEC = { photo: 'photo', band: 'field', field: 'field', spine: 'spine', stitch: 'spine', ties: 'ties', tieTop: 'ties', tieBottom: 'ties', pattern: 'pattern', stripes: 'pattern', stamps: 'stamps', stamp1: 'stamps', stamp2: 'stamps', mark: 'mark', line1: 'line1', line2: 'line2', extra: 'extra', maker: 'maker', years: 'years' };
   const DRAG = { mark: 'mark', line1: 'line1', line2: 'line2', extra: 'extra', years: 'years', stamp1: 'stamps', stamp2: 'stamps', stamps: 'stamps', maker: 'maker' };
   let drag = null;
   function onStageDown(e) {
@@ -289,7 +291,7 @@
   // shadow, slant, spacing, knockout. Size, width and position stay with each line.
   const STYLE_KEYS = ['font', 'caps', 'smallCaps', 'fill', 'o1', 'o2', 'shadow', 'italic', 'letterSpacing', 'slant', 'tail', 'ko'];
   const grabStyle = (t) => clone(Object.fromEntries(STYLE_KEYS.filter((k) => t[k] !== undefined).map((k) => [k, t[k]])));
-  const TEXT_PARTS = () => (isP() ? [['line2', 'Name'], ['extra', 'Signature'], ['line1', 'Caption']]
+  const TEXT_PARTS = () => (isC() ? [['line2', 'Name'], ['line1', 'Position'], ['extra', 'Team name']] : isP() ? [['line2', 'Name'], ['extra', 'Signature'], ['line1', 'Caption']]
     : [['line1', isB() ? 'Top line' : 'Line 1 (small)'], ['line2', isB() ? 'Big line' : 'Line 2 (big)'],
       ['extra', isB() ? 'Team name line' : 'Extra text'], ...(isB() ? [['years', 'Years']] : [])]);
   const partName = (k) => (TEXT_PARTS().find(([v]) => v === k) || [k, k])[1];
@@ -611,9 +613,13 @@
       ],
     },
     field: {
-      title: () => (isP() ? 'Poster style & paper' : isB() ? 'Banner shape & felt' : 'Felt body'), build: () => isP() ? [
+      title: () => (isC() ? 'Card style & border' : isP() ? 'Poster style & paper' : isB() ? 'Banner shape & felt' : 'Felt body'), build: () => isP() ? [
         row('Style', cTemplate()),
-        row(st.d.template === 'posterWhite' ? 'Paper' : 'Frame color', cColor('field.color')),
+        isC() ? null : row(/^posterWhite/.test(st.d.template) ? 'Paper' : 'Frame color', cColor('field.color')),
+        isC() && st.d.template === 'cardWood' ? row('Wood', h('div', { class: 'col' }, cColor('pst.paperA'), cColor('pst.paperB'))) : null,
+        isC() && st.d.template === 'cardClean' ? row('Border', cColor('field.color')) : null,
+        isC() ? row('Name band', cColor('pst.bandColor')) : null,
+        isC() && st.d.template !== 'cardClean' ? row('Band trim', cColor('pst.bandColor2')) : null,
         h('div', { class: 'sub' }, 'Line round the photo'),
         row('Keyline', cCheck('pst.keyOn')), row('Color', cColor('pst.keyColor')), row('Width', cRange('pst.keyW', 0, 24, 0.5)),
       ] : [
@@ -718,7 +724,7 @@
       ],
     },
     stamps: {
-      title: () => (isP() ? 'Corner logos (league / team)' : 'League / conference stamps'), build: () => [
+      title: () => (isC() ? 'League logo' : isP() ? 'Corner logos (league / team)' : 'League / conference stamps'), build: () => [
         ...[0, 1].flatMap((i) => [
           h('div', { class: 'sub' }, `Stamp ${i + 1}`),
           row('Show', cCheck(`stamps.items.${i}.show`)),
@@ -735,6 +741,9 @@
     },
     mark: {
       title: () => (isP() ? 'Team logo' : 'Primary mark (logo)'), build: () => [
+        isP() ? row('See-through', cRange('mark.opacity', 0.1, 1, 0.05)) : null,
+        isP() ? row('Corner', h('div', { class: 'col' }, [['tl', '↖'], ['tr', '↗'], ['bl', '↙'], ['br', '↘']].map(([c, a]) =>
+          h('button', { class: 'swap', type: 'button', title: 'Put the logo in this corner of the photo', onclick: () => { snapshot(true); logoToCorner(st.d, c); buildPanel(); queueRender(); } }, a)))) : null,
         row('Show', cCheck('mark.show')),
         row('Logo', cImage('mark.src', 'team')),
         row('Size', cRange('mark.size', 80, 700)),
@@ -746,9 +755,9 @@
         st.d.template === 'hockey' ? h('p', { class: 'fine', style: 'margin:0' }, 'The circle ring around the logo on Vintage Hockey is the medallion ring: Wedges, center stripe & medallion → Ring color.') : null,
       ],
     },
-    line1: { title: () => (isP() ? 'Caption (team, position)' : isB() ? 'Title – top line (e.g. WORLD SERIES)' : 'Wordmark – line 1 (small)'), build: textSec('line1') },
+    line1: { title: () => (isC() ? 'Position' : isP() ? 'Caption (team, position)' : isB() ? 'Title – top line (e.g. WORLD SERIES)' : 'Wordmark – line 1 (small)'), build: textSec('line1') },
     line2: { title: () => (isP() ? 'Name' : isB() ? 'Title – big line (CHAMPIONS)' : 'Wordmark – line 2 (big)'), build: textSec('line2') },
-    extra: { title: () => (isP() ? 'Signature' : isB() ? 'Team name line' : 'Extra text'), build: textSec('extra') },
+    extra: { title: () => (isC() ? 'Team name' : isP() ? 'Signature' : isB() ? 'Team name line' : 'Extra text'), build: textSec('extra') },
     photo: {
       title: 'Photo', build: () => [
         row('Photo', cPhoto()),
@@ -784,7 +793,7 @@
       ],
     },
     maker: {
-      title: "Maker's mark", build: () => [
+      title: () => (isC() ? 'Set logo (your own, top corner)' : "Maker's mark"), build: () => [
         row('Show', cCheck('maker.show')), row('Logo', cImage('maker.src', 'team')),
         row('Size', cRange('maker.size', 16, 160)), row('X', cRange('maker.x', 100, TW() - 100)), row('Y', cRange('maker.y', 40, TH() - 40)),
         swapBtn('Swap places with the league / conference stamps', swapStampsMaker),
@@ -810,7 +819,7 @@
     const wrap = h('div', { class: 'layers' + (edit ? ' editing' : ' locked') },
       h('div', { class: 'lyr-bar' }, h('span', { class: 'fine' }, edit ? 'Drag ⠿ to move a part above or below another.' : 'Locked down. Press Edit layers to change them.'), toggle),
       h('div', { class: 'lrow lhead' }, h('span', {}), h('span', {}, 'Layer'), h('span', { title: 'Show' }, 'Show'), h('span', { title: 'Lock in place' }, 'Lock'), h('span', { title: 'Layers with the same letter move together' }, 'Move'), h('span', { title: 'Layers with the same letter change colors together' }, 'Color')));
-    const label = (k) => (isP() && POSTER_NAMES[k]) || (PM.LAYERS_ALL.find(([q]) => q === k) || [k, k])[1];
+    const label = (k) => (isC() && CARD_NAMES[k]) || (isP() && POSTER_NAMES[k]) || (PM.LAYERS_ALL.find(([q]) => q === k) || [k, k])[1];
     const isSel = (k) => st.sel && (PART_SEC[st.sel] === k || (k === 'pattern' && PART_SEC[st.sel] === 'pattern'));
     const rowFor = (k, stackable) => {
       const L = PM.layer(st.d, k), movable = PM.LAYER_KEYS.includes(k);
@@ -968,7 +977,13 @@
       if (t.eraMissing) toast('No logo history found, using the current logo', 3000);
     }
     if (t.source === 'Wikipedia') t = await PM.sources.wikiDetails(t); // logo, colors, league, years from the team's page
-    if (!base && isP()) { base = PM.auto.posterBase(st.d.template); base.pst = clone(st.d.pst); }
+    if (!base && isP()) {
+      // cards in the '87 family follow the sport: basketball gets the parquet floor
+      let tpl = st.d.template;
+      if (isC() && /^card(Wood|Parquet)$/.test(tpl)) tpl = PM.auto.templateFor(t) === 'hoops' ? 'cardParquet' : 'cardWood';
+      base = PM.auto.posterBase(tpl, PM.productOf(st.d)); base.pst = clone(st.d.pst);
+      if (!isC()) { const m = st.d.mark; Object.assign(base.mark, { show: m.show, x: m.x, y: m.y, size: m.size, opacity: m.opacity }); }
+    }
     if (!base && isB()) base = PM.auto.bannerBase(st.autoTplB, st.d.bnr.shape);
     if (!base) { base = PM.auto.baseFor(t, st.autoTpl); if (st.d.template === base.template) base.stripes.order = st.d.stripes.order; }
     toast('Building ' + t.name + '…', 6000);
@@ -979,6 +994,25 @@
       (d.mark.src ? '' : ' — no logo found, add one under Primary mark'), 4200);
   }
 
+  // Team logo on a poster: its usual spot, a see-through or solid logo in a corner of the photo, or none.
+  function logoToCorner(d, c) {
+    const b = PM.posterBox(d), m = d.mark, s = Math.round(Math.min(b.w, b.h) * 0.17), pad = 28;
+    m.show = true; m.size = s; m.knockout.on = false;
+    m.x = Math.round(c[1] === 'l' ? b.x + pad + s / 2 : b.x + b.w - pad - s / 2);
+    m.y = Math.round(c[0] === 't' ? b.y + pad + s / 2 : b.y + b.h - pad - s / 2);
+  }
+  const logoMode = () => { const m = st.d.mark; if (!m.show) return 'off'; const c = (st.d.pst || {}).logoCorner; return c === 'faint' || c === 'solid' ? c : 'spot'; };
+  function setLogoMode(d, mode) {
+    d.pst.logoCorner = mode;
+    if (mode === 'off') { d.mark.show = false; return; }
+    if (mode === 'spot') {
+      const def = (PM.TEMPLATES[d.template].defaults || {}).mark || {};
+      Object.assign(d.mark, { show: true, opacity: 1, x: def.x ?? d.mark.x, y: def.y ?? d.mark.y, size: def.size ?? d.mark.size });
+      if (!def.show) d.mark.show = false;
+      return;
+    }
+    logoToCorner(d, 'br'); d.mark.opacity = mode === 'faint' ? 0.35 : 1;
+  }
   // Poster text the user typed in Automatic.
   function posterOpts() { return { player: st.poster.player || (isP() ? st.d.line2.text : ''), signature: st.poster.signature, caption: st.poster.caption }; }
   function posterCard() {
@@ -989,10 +1023,21 @@
       return i;
     };
     const caption = () => [st.lastTeam && st.lastTeam.name, (st.poster.caption || '').trim()].filter(Boolean).join('  ·  ');
+    if (isC()) return h('div', { class: 'card' }, h('h3', {}, 'Card'),
+      h('div', { class: 'sec-body', style: 'padding:0' },
+        row('Style', cTemplate()),
+        row('Photo', cPhoto()),
+        row('Name', inp('player', 'e.g. Jordan Smith', (v) => change('line2.text', v || 'Player Name'))),
+        row('Position', inp('caption', 'e.g. Shortstop', (v) => change('line1.text', v || 'Position'))),
+        h('p', { class: 'fine', style: 'margin:0' }, "Pick a team below for its colors, logo and name. Baseball and the rest get the wood-grain '87 card; basketball gets the parquet floor. More styles under Style.")));
+    const logoSel = h('select', {}, [['spot', 'In its usual spot'], ['faint', 'See-through, in a photo corner'], ['solid', 'Solid, in a photo corner'], ['off', 'None']]
+      .map(([v, l]) => h('option', { value: v, selected: logoMode() === v }, l)));
+    logoSel.addEventListener('change', () => { snapshot(true); setLogoMode(st.d, logoSel.value); buildPanel(); queueRender(); });
     return h('div', { class: 'card' }, h('h3', {}, 'Poster'),
       h('div', { class: 'sec-body', style: 'padding:0' },
         row('Style', cTemplate()),
         row('Photo', cPhoto()),
+        row('Team logo', logoSel),
         row('Name', inp('player', 'e.g. Jordan Smith', (v) => { change('line2.text', v || 'Player Name'); if (!st.poster.signature) change('extra.text', v || 'Player Name'); })),
         row('Signature', inp('signature', 'Same as the name', (v) => change('extra.text', v || st.poster.player || st.d.line2.text))),
         row('Caption', inp('caption', 'e.g. Shortstop · 2026 (team name is added)', () => { change('line1.text', caption()); change('line1.show', !!caption()); })),
@@ -1019,7 +1064,7 @@
   function buildAuto(p) {
     p.append(
       h('h2', {}, 'Automatic'),
-      h('p', { class: 'lead' }, isP() ? 'Add a photo and a name, then pick a team for the colors and logos.' : isB() ? 'Pick a team for a championship banner. Colors, logo, league stamps and wordmark are filled in; add the title and years below.' : 'Pick a team. Colors, logo, league stamps and wordmark are filled in for you.'),
+      h('p', { class: 'lead' }, isC() ? 'Add a photo, a name and a position, then pick a team for its colors and logo.' : isP() ? 'Add a photo and a name, then pick a team for the colors and logos.' : isB() ? 'Pick a team for a championship banner. Colors, logo, league stamps and wordmark are filled in; add the title and years below.' : 'Pick a team. Colors, logo, league stamps and wordmark are filled in for you.'),
       isP() ? posterCard() : isB() ? bannerCard() : null,
       h('div', { class: 'card' }, h('h3', {}, 'Find a team'), teamSearch((t) => pickTeam(t)),
         isP() ? null : h('div', { class: 'row', style: 'margin-top:10px' }, h('span', {}, 'Background'), cTplChoice()),
@@ -1130,7 +1175,14 @@
     { title: 'Logos & caption', secs: ['mark', 'stamps', 'line1'], tip: 'A team logo, small league or team logos in a corner, and a caption line like the team and position.' },
     { title: 'Finish', secs: [], finish: true, tip: 'Download it below the preview, or Save the design to keep working on it later.' },
   ];
-  const stepsNow = () => (isP() ? POSTER_STEPS : isB() ? STEPS.map((x) => Object.assign({}, x, BANNER_STEP[x.title] || {})) : STEPS);
+  const CARD_STEPS = [
+    { title: 'Style & colors', secs: ['field', 'palette'], team: true, tip: "Wood Grain '87 is the classic; Parquet Floor is the basketball version; Silver Arch and Clean White are late-80s looks. Look up a team for its colors and logo." },
+    { title: 'Photo', secs: ['photo'], tip: 'Upload a photo (or drop one on the card), then zoom and slide it so the player fills the frame.' },
+    { title: 'Name & position', secs: ['line2', 'line1', 'extra'], tip: 'The name on the color band, the position, and the team name where the style has room for it.' },
+    { title: 'Logos', secs: ['mark', 'stamps', 'maker'], tip: 'The team logo, an optional league logo, and a set logo of your own (your team, league or tournament).' },
+    { title: 'Finish', secs: [], finish: true, tip: 'Download it below the preview. Print PDF at Trading card size gives a real 2.5 x 3.5 in card with a cut line.' },
+  ];
+  const stepsNow = () => (isC() ? CARD_STEPS : isP() ? POSTER_STEPS : isB() ? STEPS.map((x) => Object.assign({}, x, BANNER_STEP[x.title] || {})) : STEPS);
   function buildGuided(p) {
     const STEPS = stepsNow();
     if (st.step >= STEPS.length) st.step = 0;
@@ -1153,7 +1205,8 @@
   function buildManual(p) {
     p.append(h('h2', {}, 'Manual'), h('p', { class: 'lead' }, `Every part is editable. Click a part on the ${PM.productOf(st.d)} to jump to it.`));
     const selSec = PART_SEC[st.sel];
-    (isP() ? ['layers', 'palette', 'field', 'photo', 'line2', 'extra', 'line1', 'mark', 'stamps'] : ORDER.filter((k) => k !== 'years' || isB()))
+    (isC() ? ['layers', 'palette', 'field', 'photo', 'line2', 'line1', 'extra', 'mark', 'stamps', 'maker']
+      : isP() ? ['layers', 'palette', 'field', 'photo', 'line2', 'extra', 'line1', 'mark', 'stamps'] : ORDER.filter((k) => k !== 'years' || isB()))
       .forEach((k) => p.append(secEl(k, k === selSec || k === 'layers')));
     p.append(h('div', { class: 'scroll-pad' })); // room to bring even the last section up to the top
   }
@@ -1244,9 +1297,9 @@
   }
   function setProduct(prod) {
     if (PM.productOf(st.d) === prod) return;
-    const d = PM.auto.toProduct(clone(st.d), prod, { tpl: prod === 'banner' ? st.autoTplB : null, team: st.lastTeam, banner: bannerOpts(), poster: posterOpts() });
+    const d = PM.auto.toProduct(clone(st.d), prod, { tpl: prod === 'banner' ? st.autoTplB : prod === 'card' && st.lastTeam && PM.auto.templateFor(st.lastTeam) === 'hoops' ? 'cardParquet' : null, team: st.lastTeam, banner: bannerOpts(), poster: posterOpts() });
     replaceDesign(d);
-    toast(prod === 'poster' ? 'Poster: add a photo and a name in Automatic, or click any part to edit it' : prod === 'banner' ? 'Championship banner: add the title and years in Automatic, or click any part to edit it' : 'Back to the pennant', 3800);
+    toast(prod === 'card' ? "Card: add a photo, name and position in Automatic. Wood Grain '87 to start; more styles under Style" : prod === 'poster' ? 'Poster: add a photo and a name in Automatic, or click any part to edit it' : prod === 'banner' ? 'Championship banner: add the title and years in Automatic, or click any part to edit it' : 'Back to the pennant', 3800);
   }
   function setMode(m) { st.mode = m; if (m === 'auto' || m === 'bulk') st.sel = null; buildPanel(); queueRender(); localStorage.setItem('pm_mode', m); }
 
@@ -1282,7 +1335,7 @@
       }
       if (C.contrast(t.fill, d.field.color) < 1.35 && t.o1.w === 0 && t.o2.w === 0) out.push({ msg: `${name} is hard to read on the felt.`, fixes: [['Add outline', () => { snapshot(true); t.o2 = { color: d.palette.primary, w: 4 }; buildPanel(); queueRender(); }]] });
     });
-    if (PM.isPoster(d) && !d.pst.photo) out.push({ msg: 'No photo yet. Upload one or drop it on the poster.', fixes: [['Add photo', () => { st.sel = 'photo'; setMode('manual'); }]] });
+    if (PM.isPoster(d) && !d.pst.photo) out.push({ msg: `No photo yet. Upload one or drop it on the ${PM.productOf(d)}.`, fixes: [['Add photo', () => { st.sel = 'photo'; setMode('manual'); }]] });
     else if (!PM.isPoster(d) && d.mark.show && !d.mark.src && st.mode !== 'bulk') out.push({ msg: 'No primary logo yet. Upload one, paste a link, or use Find.', fixes: [['Add logo', () => { st.sel = 'mark'; setMode('manual'); }]] });
     out.forEach((w) => box.append(h('div', { class: 'warn' }, h('span', {}, '⚠ ' + w.msg), ...w.fixes.map(([l, f]) => h('button', { onclick: f }, l)))));
   }
@@ -1291,7 +1344,7 @@
   // File name: "<line 1> <line 2> - <pennant style>", e.g. "Seattle Seahawks - Vintage Baseball"
   const fileBase = () => {
     const parts = isP() ? [st.d.line2] : isB() ? [st.d.extra, st.d.line1, st.d.line2] : [st.d.line1, st.d.line2];
-    const words = parts.filter((l) => l.show !== false && l.text && !l.useImg).map((l) => l.text.trim()).join(' ') || st.d.name || (isP() ? 'Poster' : isB() ? 'Banner' : 'Pennant');
+    const words = parts.filter((l) => l.show !== false && l.text && !l.useImg).map((l) => l.text.trim()).join(' ') || st.d.name || (isC() ? 'Card' : isP() ? 'Poster' : isB() ? 'Banner' : 'Pennant');
     const style = (PM.TEMPLATES[st.d.template] || {}).name || 'Pennant';
     return `${words} - ${style}`.replace(/[<>:"/\\|?*\u0000-\u001f]+/g, '').replace(/\s+/g, ' ').trim();
   };

@@ -173,8 +173,14 @@ window.PM = window.PM || {};
     const player = (o.player || '').trim() || (d.line2.text && d.texts && d.texts.poster ? d.line2.text : '') || 'Player Name';
     d.line2.text = player; d.line2.show = true; d.line2.useImg = false; d.line2.autoImg = false;
     d.extra.text = o.signature != null && o.signature !== '' ? o.signature : player; d.extra.useImg = false; d.extra.autoImg = false;
+    if (PM.isCard(d)) {
+      // cards: position on line 1, team name on the extra line, no signature
+      d.line1.text = (o.caption || '').trim() || d.line1.text || 'Position'; d.line1.show = true; d.line1.useImg = false;
+      d.extra.text = (team && team.name) || d.extra.text || '';
+      return;
+    }
     d.line1.text = [team && team.name, (o.caption || '').trim()].filter(Boolean).join('  ·  '); d.line1.useImg = false;
-    d.line1.show = d.template === 'posterWhite' ? !!d.line1.text : !!(o.caption || '').trim();
+    d.line1.show = /^posterWhite/.test(d.template) ? !!d.line1.text : !!(o.caption || '').trim();
   };
   // Switch a design between pennant and banner, keeping each product's own lettering.
   const TEXT_KEYS = ['text', 'show', 'useImg', 'img', 'imgAR', 'imgScale', 'autoImg', 'imgFrom'];
@@ -185,21 +191,21 @@ window.PM = window.PM || {};
     d.texts = d.texts || {};
     d.texts[cur] = { line1: grab(d.line1), line2: grab(d.line2), extra: grab(d.extra) };
     // what the pennant said becomes the banner's team-name line (and back)
-    const pennantName = cur === 'poster' ? (d.name || '') : [d.line1.show !== false && !d.line1.useImg ? d.line1.text : '', !d.line2.useImg ? d.line2.text : ''].filter(Boolean).join(' ');
+    const pennantName = cur === 'poster' || cur === 'card' ? (d.name || '') : [d.line1.show !== false && !d.line1.useImg ? d.line1.text : '', !d.line2.useImg ? d.line2.text : ''].filter(Boolean).join(' ');
     const wordmark = cur === 'pennant' && d.line2.useImg && d.line2.img ? grab(d.line2) : null;
     const bannerName = cur === 'banner' && d.extra.show ? d.extra.text : '';
     const shape = d.bnr && d.bnr.shape;
-    d = PM.setTemplate(d, opts.tpl || (product === 'banner' ? 'bannerRafter' : product === 'poster' ? 'posterFrame' : 'classic'));
+    d = PM.setTemplate(d, opts.tpl || ({ banner: 'bannerRafter', poster: 'posterFrame', card: 'cardWood' })[product] || 'classic');
     if (shape) d.bnr.shape = shape;
     // leaving a poster: bring back the felt parts a poster switches off, and centred, capital lettering
-    if (cur === 'poster') {
+    if (cur === 'poster' || cur === 'card') {
       d.spine.show = true; d.ties.top.show = true; d.ties.bottom.show = true; d.mark.show = true; d.mark.knockout.on = true;
       if (!d.field.margin) d.field.margin = 18;
       for (const k of ['line1', 'line2', 'extra']) Object.assign(d[k], { align: 'middle', caps: true });
     }
     const saved = d.texts[product];
     if (saved) { Object.assign(d.line1, saved.line1); Object.assign(d.line2, saved.line2); Object.assign(d.extra, saved.extra); }
-    else if (product === 'poster') {
+    else if (product === 'poster' || product === 'card') {
       A.posterText(d, { name: pennantName || d.name }, opts.poster || {});
     } else if (product === 'banner') {
       A.bannerText(d, { name: pennantName || d.name, leagueId: opts.team && opts.team.leagueId, leagueLabel: opts.team && opts.team.leagueLabel, college: opts.team && opts.team.college }, opts.banner || {});
@@ -230,7 +236,7 @@ window.PM = window.PM || {};
   };
   // A fresh design on the chosen background ('match' = pick by sport).
   A.baseFor = (team, choice) => PM.setTemplate(PM.defaultDesign(), !choice || choice === 'match' ? A.templateFor(team) : choice);
-  A.posterBase = (choice) => PM.setTemplate(PM.defaultDesign(), choice && PM.TEMPLATES[choice] && PM.TEMPLATES[choice].poster ? choice : 'posterFrame');
+  A.posterBase = (choice, product = 'poster') => PM.setTemplate(PM.defaultDesign(), choice && PM.TEMPLATES[choice] && PM.TEMPLATES[choice].poster ? choice : product === 'card' ? 'cardWood' : 'posterFrame');
   A.bannerBase = (choice, shape) => { const d = PM.setTemplate(PM.defaultDesign(), choice && PM.TEMPLATES[choice] && PM.TEMPLATES[choice].banner ? choice : 'bannerRafter'); if (shape) d.bnr.shape = shape; return d; };
 
   // Rotate through wordmark styles / fonts for "Remix" in auto mode.
