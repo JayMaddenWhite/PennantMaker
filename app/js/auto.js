@@ -126,6 +126,21 @@ window.PM = window.PM || {};
   };
   A._layout = (d, L) => {
     const has1 = d.line1.show !== false && !!d.line1.text;
+    const tpl = PM.TEMPLATES[d.template] || PM.TEMPLATES.classic;
+    // Retro pennant letters: both lines start just right of the logo, a small top line over a huge name
+    if (d.wordStyle === 'retro' && !tpl.banner && !tpl.poster) {
+      const k = L.size2 / 170, m = d.mark;
+      const left = m && m.show !== false && m.src ? Math.round(m.x + m.size / 2 + 16) : tpl.bodyX + 120;
+      Object.assign(d.line1, { size: Math.round(74 * k), maxWidth: 760, x: left, align: 'start' });
+      Object.assign(d.line2, { size: Math.round(198 * k), maxWidth: 1150, x: left, align: 'start' });
+      if (has1) { d.line1.y = L.l1y - 14; d.line2.y = L.l2y - 24; } else d.line2.y = L.soloY + 40;
+      return;
+    }
+    // every other style is centred on the template's lettering spot
+    if (!tpl.banner && !tpl.poster && tpl.defaults) {
+      if (tpl.defaults.line1 && tpl.defaults.line1.x != null) d.line1.x = tpl.defaults.line1.x;
+      if (tpl.defaults.line2 && tpl.defaults.line2.x != null) d.line2.x = tpl.defaults.line2.x;
+    }
     if (!has1) { d.line2.y = L.soloY; } else { d.line1.y = L.l1y; d.line2.y = L.l2y; }
     d.line2.size = L.size2;
     if (d.wordStyle === 'gothic') d.line2.size = Math.round(L.size2 * 1.3); // narrow letters can stand taller

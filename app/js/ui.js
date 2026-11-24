@@ -969,7 +969,7 @@
     return h('div', {}, h('div', { class: 'search' }, input, h('button', { class: 'primary', onclick: go }, 'Search')), chips, hs, minors, results);
   }
 
-  st.autoTpl = st.autoTpl || 'match';
+  st.autoTpl = st.autoTpl || 'classic'; // Vintage Baseball unless you pick another background (or Match the sport)
   async function pickTeam(t, base) {
     if (st.era.on) {
       toast(`Finding the ${st.era.year} logo for ${t.name}…`, 6000);
@@ -1321,7 +1321,8 @@
         const crossing = new Set();
         tops.forEach((top, i) => {
           if (s.hide[i]) return;
-          for (let x = t.x - w / 2; x <= t.x + w / 2; x += 20) {
+          const lx = t.align === 'start' ? t.x : t.align === 'end' ? t.x - w : t.x - w / 2;
+          for (let x = lx; x <= lx + w; x += 20) {
             const a = top + g.b * (x - g.t.bodyX);
             if (a < y1 && a + th > y0) { crossing.add(seq[i]); break; }
           }

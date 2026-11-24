@@ -29,7 +29,7 @@ window.PM = window.PM || {};
         return s + `</g>`;
       },
       defaults: {
-        wordStyle: 'classic',
+        wordStyle: 'retro',
         field: { margin: 18, tipX: 1905 },
         spine: { outerW: 40, innerW: 18, stitchSeam: true },
         ties: { top: { show: true }, bottom: { show: true } },
@@ -116,7 +116,7 @@ window.PM = window.PM || {};
           if (k.knockout) {
             const spans = [d.line1, d.line2].filter((l) => PM.lineUsesImg(l) || (l.show && l.text)).map((l) => {
               if (PM.lineUsesImg(l)) { const b = PM.lineImgBox(l); return [b.cx - b.w / 2, b.cx + b.w / 2]; }
-              const wd = PM.measure(l, PM.fitSize(l)); return [l.x - wd / 2, l.x + wd / 2];
+              const wd = PM.measure(l, PM.fitSize(l)), x0 = l.align === 'start' ? l.x : l.align === 'end' ? l.x - wd : l.x - wd / 2; return [x0, x0 + wd];
             });
             if (spans.length) {
               const L = Math.min(...spans.map((q) => q[0])) - k.knockPad, R = Math.max(...spans.map((q) => q[1])) + k.knockPad;
@@ -244,7 +244,7 @@ window.PM = window.PM || {};
         return s + `</g>`;
       },
       defaults: {
-        wordStyle: 'classic',
+        wordStyle: 'retro',
         field: { margin: 18, tipX: 1905 },
         spine: { outerW: 40, innerW: 18, stitchSeam: true },
         ties: { top: { show: true }, bottom: { show: true } },
@@ -759,7 +759,7 @@ window.PM = window.PM || {};
     version: 1,
     template: 'classic',
     name: 'Starter',
-    wordStyle: 'classic',
+    wordStyle: 'retro',
     palette: { primary: '#3a3839', secondary: '#8b8a8b', tertiary: null, field: PM.DEFAULT_FIELD },
     field: { color: PM.DEFAULT_FIELD, margin: 18, tipX: 1905 },
     spine: { show: true, outer: '#3a3839', inner: '#8b8a8b', outerW: 40, innerW: 18, stitch: '#f4ecd8', stitchOn: true, stitchOuter: true, stitchSeam: true, stitchW: 1.8, dash: 7 },
@@ -867,8 +867,10 @@ window.PM = window.PM || {};
       t.bodyX + (yTop - t.top - pad) / g.a,
       t.bodyX + (yBot + pad - t.bottom) / g.b);
     // furthest left: clear of the primary mark (or the spine)
-    const left = d.mark && d.mark.show && d.mark.src !== undefined && d.mark.x + d.mark.size / 2 < l.x
-      ? d.mark.x + d.mark.size / 2 + 24 : t.bodyX + 60;
+    const left = d.mark && d.mark.show && d.mark.src !== undefined && d.mark.x + d.mark.size / 2 < l.x + 2
+      ? d.mark.x + d.mark.size / 2 + 12 : t.bodyX + 60;
+    // the line's left and right edges, whichever way it lines up on x
+    const edges = (w) => (l.align === 'start' ? [l.x, l.x + w] : l.align === 'end' ? [l.x - w, l.x] : [l.x - w / 2, l.x + w / 2]);
     const edge = (l.o1?.w || 0) + (l.o2?.w || 0) + (l.ko?.on ? l.ko.w || 0 : 0);
     const box = () => {
       if (PM.lineUsesImg(l)) { const b = PM.lineImgBox(l); return { w: b.w, top: b.cy - b.h / 2 - edge, bot: b.cy + b.h / 2 + edge }; }
@@ -877,14 +879,14 @@ window.PM = window.PM || {};
     };
     let changed = false;
     for (let i = 0; i < 14; i++) {
-      const bx = box(), xr = reach(bx.top, bx.bot);
-      const over = l.x + bx.w / 2 - xr;
+      const bx = box(), xr = reach(bx.top, bx.bot), [x0, x1] = edges(bx.w);
+      const over = x1 - xr;
       if (over <= 0.5) break;
       // 1) slide left into the taller part of the pennant, if there's free felt there
-      const slack = opts.shift === false ? 0 : (l.x - bx.w / 2) - left;
+      const slack = opts.shift === false ? 0 : x0 - left;
       if (slack > 1) { l.x = Math.round(l.x - Math.min(over, slack)); changed = true; continue; }
       // 2) still too big: shrink
-      const allowed = 2 * (xr - l.x);
+      const allowed = l.align === 'start' ? xr - l.x : l.align === 'end' ? bx.w - over : 2 * (xr - l.x);
       if (PM.lineUsesImg(l)) {
         if ((l.imgScale || 1) < 0.3) break;
         l.imgScale = +((l.imgScale || 1) * Math.max(0.6, Math.min(0.97, allowed / bx.w))).toFixed(3);
@@ -1002,6 +1004,24 @@ window.PM = window.PM || {};
       if (together && d.line1.x !== d.line2.x) { d.line1.x = d.line2.x; ch = true; }
       ch = PM.fitLineToPennant(d, 'line1', { shift: !together }) || ch;
     }
+    // Left-lined pairs (retro letters): when a long name had to shrink, keep the pair in proportion —
+    // a smaller top line, a tight gap, and the pair centred on the widest part of the pennant — then refit.
+    const l1 = d.line1, l2 = d.line2;
+    if (together && l2.align === 'start' && l1.show !== false && l1.text && !PM.lineUsesImg(l1) && !PM.lineUsesImg(l2) && l2.text) {
+      const big = l2.size;
+      for (let pass = 0; pass < 2; pass++) {
+        const s2 = PM.fitSize(l2);
+        if (s2 > big * 0.78) break;
+        l1.size = Math.min(l1.size, Math.max(36, Math.round(s2 * 0.5)));
+        l1.maxWidth = Math.max(l1.maxWidth || 0, 760);
+        const s1 = PM.fitSize(l1), cap1 = 0.72 * s1, cap2 = 0.72 * s2, gap = Math.round(0.14 * s2 + 10);
+        const g = PM.geom(d), top = g.tipY - 25 - (cap1 + gap + cap2) / 2; // a touch above the middle, like the classics
+        l1.y = Math.round(top + cap1); l2.y = Math.round(l1.y + gap + cap2);
+        l2.maxWidth = 1150;                                    // let it grow again in the wider middle
+        PM.fitLineToPennant(d, 'line2', { shift: false }); PM.fitLineToPennant(d, 'line1', { shift: false });
+        ch = true;
+      }
+    }
     if (keys.includes('extra')) ch = PM.fitLineToPennant(d, 'extra') || ch;
     return ch || markCh;
   };
@@ -1017,7 +1037,8 @@ window.PM = window.PM || {};
   PM.lineImgBox = (l) => {
     const bw = (l.maxWidth || 800) * (l.imgScale || 1), bh = l.size * 1.15 * (l.imgScale || 1), ar = l.imgAR || 3;
     const w = bw / bh > ar ? bh * ar : bw, h = bw / bh > ar ? bh : bw / ar;
-    return { cx: l.x, cy: l.y - l.size * 0.36, w, h };
+    const cx = l.align === 'start' ? l.x + w / 2 : l.align === 'end' ? l.x - w / 2 : l.x;
+    return { cx, cy: l.y - l.size * 0.36, w, h };
   };
   PM.lineUsesImg = (l) => !!(l.show && l.useImg && l.img);
 

@@ -67,7 +67,8 @@ window.PM = window.PM || {};
 
   // Wordmark style presets — each mirrors one of the reference pennants.
   C.STYLES = {
-    classic: { label: 'Clean felt letters (default)', l1Font: 'Oswald Medium', l2Font: 'Bebas Neue' },
+    retro: { label: 'Retro pennant letters (default)', l1Font: 'Poppins', l2Font: 'Poppins' },
+    classic: { label: 'Clean felt letters', l1Font: 'Oswald Medium', l2Font: 'Bebas Neue' },
     block: { label: 'Varsity block (classic college)', l1Font: 'Oswald', l2Font: 'Graduate' },
     outline: { label: 'Hollow outline (Seahawks)', l1Font: 'Alfa Slab One', l2Font: 'Alfa Slab One' },
     script: { label: 'Script with tail (Dodgers style)', l1Font: 'Oswald', l2Font: 'Yellowtail' },
@@ -101,6 +102,9 @@ window.PM = window.PM || {};
     l1.font = st.l1Font; l2.font = st.l2Font;
     l1.fill = textColor; l1.o1 = { color: F, w: 0 }; l1.o2 = { color: P, w: 0 }; l1.shadow.on = false;
     l2.tail = false; l2.rotate = 0; l1.rotate = 0; l1.letterSpacing = 0; l2.letterSpacing = 0;
+    // pennants and banners line up centred unless a style says otherwise (posters and cards keep their own line-up)
+    const tplNow = PM.TEMPLATES && PM.TEMPLATES[d.template], pennant = !(tplNow && (tplNow.banner || tplNow.poster));
+    if (!(tplNow && tplNow.poster)) { l1.align = 'middle'; l2.align = 'middle'; if (d.extra) d.extra.align = 'middle'; }
     if (style === 'block') {
       l2.fill = textColor; l2.o1 = { color: F, w: 6 }; l2.o2 = { color: textColor, w: 3 };
       l1.fill = textColor === P ? (C.contrast(S, F) > 3 ? S : '#1b1b1b') : P;
@@ -131,6 +135,13 @@ window.PM = window.PM || {};
     }
     else if (style === 'split') {
       l2.fill = F; l2.o1 = { color: F, w: 0 }; l2.o2 = { color: C.darken(P, 0.35), w: 4 }; l2.shadow.on = false; l1.fill = F; l1.o2 = { color: C.darken(P, 0.35), w: 3 };
+    }
+    else if (style === 'retro') {
+      // big geometric capitals: team color, a thin dark edge, then a felt-colored halo where they cross the stripes
+      const edge = [S, T, '#141414'].find((c) => c && C.contrast(c, textColor) >= 1.8 && C.contrast(c, F) >= 1.8) || '#141414';
+      for (const l of [l1, l2]) { l.fill = textColor; l.o1 = { color: edge, w: l === l2 ? 4 : 3 }; l.o2 = { color: F, w: l === l2 ? 7 : 5 }; l.shadow.on = false; }
+      l1.letterSpacing = 1;
+      if (pennant) { l1.align = 'start'; l2.align = 'start'; }
     }
     else if (style === 'classic') {
       // tall, clean letters with one thin accent edge: reads like cut felt without the heavy block look
