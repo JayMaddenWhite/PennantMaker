@@ -289,12 +289,32 @@
     const apply = (c) => { c = PM.colors.norm(c); if (!c) return; pick.value = c; txt.value = c; change(path, c); };
     pick.addEventListener('input', () => apply(pick.value));
     txt.addEventListener('change', () => apply(txt.value));
-    const p = st.d.palette || {};
-    const sws = [p.primary, p.secondary, p.tertiary, st.d.field.color, '#ffffff', '#141414'].filter(Boolean)
-      .filter((c, i, a) => a.indexOf(c) === i)
-      .map((c) => h('button', { class: 'sw', style: `background:${c}`, title: c, onclick: () => apply(c) }));
+    // Swatches on their own full-width row: team colors, then every color pulled from the logo, then white / black.
+    const sw = (c, title) => h('button', { class: 'sw', style: `background:${c}`, title: `${title}: ${c}`, onclick: () => apply(c) });
+    const swRow = h('div', { class: 'swatches' });
+    const paint = (logo) => {
+      const p = st.d.palette || {}, seen = new Set();
+      const add = (c, title) => { c = PM.colors.norm(c); if (!c || seen.has(c.toLowerCase())) return null; seen.add(c.toLowerCase()); return sw(c, title); };
+      const team = [[p.primary, 'Primary'], [p.secondary, 'Secondary'], [p.tertiary, 'Tertiary'], [st.d.field.color, 'Felt']].map(([c, t]) => add(c, t)).filter(Boolean);
+      const near = (c) => team.some((b) => PM.colors.dist(b.title.split(': ')[1], c) < 40); // already offered as a team color
+      const fromLogo = (logo || []).filter((c) => !near(c)).map((c) => add(c, 'From the logo')).filter(Boolean);
+      const basics = [['#ffffff', 'White'], ['#141414', 'Black']].map(([c, t]) => add(c, t)).filter(Boolean);
+      swRow.replaceChildren(...team, fromLogo.length ? h('span', { class: 'sw-sep', title: 'Colors from the logo' }) : null, ...fromLogo, h('span', { class: 'sw-sep' }), ...basics);
+    };
+    const src = st.d.mark && st.d.mark.show !== false ? st.d.mark.src : null;
+    paint(logoSwatches(src, paint));
     binders.push(() => { pick.value = v(); txt.value = v(); });
-    return h('div', { class: 'col' }, pick, txt, ...sws);
+    return h('div', { class: 'col color-ctl' }, pick, txt, swRow);
+  }
+  // Colors pulled from the primary logo, kept per logo so every color picker can offer them.
+  const logoSw = new Map();
+  function logoSwatches(src, then) {
+    if (!src) return [];
+    const got = logoSw.get(src);
+    if (Array.isArray(got)) return got;
+    if (!got) logoSw.set(src, PM.colors.extract(src, 10, 0.006).then((cs) => { const out = (cs || []).filter(Boolean); logoSw.set(src, out); return out; }).catch(() => { logoSw.set(src, []); return []; }));
+    logoSw.get(src).then((cs) => then(cs));
+    return [];
   }
   function cRange(path, min, max, step = 1) {
     const r = h('input', { type: 'range', min, max, step, value: get(path) });

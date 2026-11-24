@@ -280,3 +280,9 @@ details.subsec > .sub-body { display: flex; flex-direction: column; gap: 9px; pa
 @media (max-width: 860px) { details.subsec > summary { padding: 12px 0 6px; font-size: 12.5px; } }
 /* space under the last section so any section can be scrolled up to the top */
 .panel > .scroll-pad { height: 60vh; }
+
+/* color swatches: their own full-width row under the picker, so every logo color fits */
+.color-ctl .swatches { flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+.color-ctl .sw { width: 22px; height: 22px; }
+.swatches .sw-sep { width: 1px; height: 18px; background: var(--line); margin: 0 2px; }
+@media (max-width: 860px) { .color-ctl .sw { width: 26px; height: 26px; } }

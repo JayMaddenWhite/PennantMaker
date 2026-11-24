@@ -24,7 +24,8 @@ window.PM = window.PM || {};
 
   // Pull the main colors out of a logo (data URL) — used to find a 3rd color
   // or fix a weak secondary when a database only gives primary/alternate.
-  C.extract = (dataUrl, n = 4) => new Promise((resolve) => {
+  // minShare: skip colors covering less than this share of the logo (edge blends between two inks)
+  C.extract = (dataUrl, n = 4, minShare = 0) => new Promise((resolve) => {
     if (!dataUrl) return resolve([]);
     const img = new Image();
     img.onload = () => {
@@ -38,7 +39,8 @@ window.PM = window.PM || {};
         const b = buckets[k] || (buckets[k] = { n: 0, r: 0, g: 0, b: 0 });
         b.n++; b.r += d[i]; b.g += d[i + 1]; b.b += d[i + 2];
       }
-      const list = Object.values(buckets).sort((a, b) => b.n - a.n)
+      const total = Object.values(buckets).reduce((t, b) => t + b.n, 0);
+      const list = Object.values(buckets).filter((b) => b.n >= total * minShare).sort((a, b) => b.n - a.n)
         .map((b) => C.hex(b.r / b.n, b.g / b.n, b.b / b.n));
       const out = [];
       for (const c of list) {
