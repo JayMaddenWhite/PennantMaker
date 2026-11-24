@@ -267,6 +267,8 @@ select { max-width: 100%; }
 
 /* header wordmark (two-line script with the pennant) */
 .brand .wordmark { height: 58px; width: auto; display: block; margin: -8px 0; }
+/* the animated script wordmark keeps its own lettering (the header is set in spaced capitals) */
+.brand pennant-wordmark { text-transform: none; letter-spacing: normal; }
 @media (max-width: 860px) { .brand .wordmark { height: 40px; } }
 
 /* subsections inside a part (Outlines, Knockout, Effects, Position…): fold away with their own triangle */
