@@ -190,7 +190,7 @@ window.PM = window.PM || {};
     return c;
   }
 
-  // ---------- Felt mockup (like the Gaffa photo) ----------
+  // ---------- Felt mockup (a photo-style felt pennant) ----------
   // bg: 'wall' (beige wall) | 'transparent' | any CSS color
   R.felt = async (d, { width = 2400, bg = 'wall', wave = 1, aged = false } = {}) => {
     if (aged) wave *= 1.5;

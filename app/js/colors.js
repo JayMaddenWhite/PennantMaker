@@ -68,10 +68,10 @@ window.PM = window.PM || {};
   // Wordmark style presets — each mirrors one of the reference pennants.
   C.STYLES = {
     classic: { label: 'Clean felt letters (default)', l1Font: 'Oswald Medium', l2Font: 'Bebas Neue' },
-    block: { label: 'Block (Miss State)', l1Font: 'Oswald', l2Font: 'Graduate' },
+    block: { label: 'Varsity block (classic college)', l1Font: 'Oswald', l2Font: 'Graduate' },
     outline: { label: 'Hollow outline (Seahawks)', l1Font: 'Alfa Slab One', l2Font: 'Alfa Slab One' },
-    script: { label: 'Script w/ tail (Hartfield)', l1Font: 'Oswald', l2Font: 'Yellowtail' },
-    modern: { label: 'Modern (Gaffa)', l1Font: 'Archivo Black', l2Font: 'Archivo Black' },
+    script: { label: 'Script with tail (Dodgers style)', l1Font: 'Oswald', l2Font: 'Yellowtail' },
+    modern: { label: 'Heavy modern (90s pro style)', l1Font: 'Archivo Black', l2Font: 'Archivo Black' },
     slab: { label: 'Slab (Angels)', l1Font: 'Oswald', l2Font: 'Alfa Slab One' },
     hoops: { label: 'Retro hoops (80s NBA)', l1Font: 'Alfa Slab One', l2Font: 'Alfa Slab One' },
     hockey: { label: 'Clean sans (80s NHL)', l1Font: 'Montserrat', l2Font: 'Montserrat' },

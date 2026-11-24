@@ -84,7 +84,7 @@ window.PM = window.PM || {};
     B.COLUMNS.join(','),
     'Seattle Seahawks,baseball,,Seattle,Seahawks,Seattle Seahawks,nfl,,,,,outline,ABBA,auto,,,,both',
     'Mississippi State Bulldogs,baseball,,Miss. State,Bulldogs,Mississippi State,cbase,,,,,block,ABAB,auto,,,,bottom',
-    'Hartfield Hawks,baseball,,,Hartfield,,,#7d2230,#cdb27f,,,script,ABBA,hartfield.png,mais.png,none,,both',
+    'Los Angeles Dodgers,baseball,,Los Angeles,Dodgers,Los Angeles Dodgers,mlb,,,,,script,ABBA,auto,,,,both',
     'Sacramento Kings,hoops,,Sacramento,Kings,Sacramento Kings,nba,,,,,,,auto,,,,',
     'Phoenix Suns,,,Phoenix,Suns,Phoenix Suns,nba,,,,,,,auto,,,,',
     'New Jersey Devils,hockey,,New Jersey,Devils,New Jersey Devils,nhl,,,,,,,auto,,,,',
